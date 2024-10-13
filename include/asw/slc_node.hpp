@@ -22,6 +22,9 @@
 #include <vector>
 #include <string>
 
+#include <asw/scope.hpp>
+#include <asw/visitor.hpp>
+
 namespace asw::slc
 {
 enum class type_id
@@ -125,16 +128,36 @@ inline std::string op_to_str(op_id id)
   return "unknown_op"s;
 }
 
+struct location_info
+{
+  location_info(
+    int _line, int _column, const char * _text)
+  {
+    line = _line;
+    column = _column;
+    text = _text;
+  }
+
+  int line = 0;
+  int column = 0;
+  std::string text;
+};
+
 struct node
 {
   node() = default;
   virtual ~node()
   {
+    delete location_;
     for (auto * const child : children) {
       delete child;
     }
   }  
 
+  virtual bool accept(const visitor * v)
+  {
+    return v->visit_node(this);
+  }
   /**
    * returns a path to the root node
    */
@@ -150,6 +173,17 @@ struct node
     return ret;
   }
 
+  std::string get_fqn() const
+  {
+    if (fqn.empty()) {
+      auto vec{get_path_from_root()};
+      for (const auto & n : vec) {
+        fqn += std::string("::") + n;
+      }
+    }
+    return fqn;
+  }
+
   const std::string & get_name() const
   {
     return name;
@@ -162,7 +196,7 @@ struct node
 
   node * get_parent() const
   {
-    return parent;
+    return parent_;
   }
 
   const std::vector<node *> & get_children() const
@@ -173,13 +207,12 @@ struct node
   bool is_root() const
   {
     /* this is not a great check, but it's sufficient for now */
-    return nullptr == parent && name == "Root";
+    return nullptr == parent_ && name == "Root";
   }
 
   void add_child(node * child)
   {
-    fprintf(stderr, "add_child(%p)\n", child);
-    child->parent = this;
+    child->parent_ = this;
     children.emplace_back(child);
   }
 
@@ -212,31 +245,51 @@ struct node
     return ret;
   }
 
+  void set_scope(const std::shared_ptr<scope> & _scope)
+  {
+    scope_ = _scope;
+  }
+
+  std::shared_ptr<scope> get_scope()
+  {
+    return scope_;
+  }
+
+  void set_location(int line, int col, const char * text)
+  {
+    location_ = new location_info(line, col, text);
+  }
+
+  location_info * get_location() const
+  {
+    if (nullptr == location_) {
+      fprintf(stderr, "internal compiler error: location unset for node '%s'\n", this->get_fqn().c_str());
+    }
+    return location_;
+  }
+
 protected:
-  node * parent = nullptr;
+  node * parent_ = nullptr;
+  std::shared_ptr<scope> scope_ = nullptr;
+  location_info * location_ = nullptr;
+
   std::vector<node *> children{};
   std::string name = "Root";
+  mutable std::string fqn{};
 };
 
 struct expression : public node {
   ~expression() override = default;
-
-  // std::string print_node(size_t indent_level) const override
-  // {
-  //   std::string indent = get_indent(indent_level);
-  //   std::string ret = indent + "expression:\n";
-  //   for (const auto * child : this->get_children()) {
-  //     ret += child->print_node(indent_level + 1);
-  //   }
-  //   std::string indent2 = get_indent(indent_level + 1);
-  //   ret += indent2 + "name: " + this->name + "\n";
-  //   return ret;
-  // }
 };
 
 struct simple_expression : public expression
 {
   ~simple_expression() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_simple_expression(this);
+  }
 
   std::string print_node(size_t indent_level) const override
   {
@@ -262,6 +315,11 @@ protected:
 struct literal : public simple_expression
 {
   ~literal() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_literal(this);
+  }
 
   std::string print_node(size_t indent_level) const override
   {
@@ -296,6 +354,11 @@ protected:
 struct variable : public simple_expression
 {
   ~variable() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_variable(this);
+  }
 
   void resolve(node * /* scope */)
   {
@@ -346,6 +409,12 @@ protected:
 struct list_op : public expression
 {
   ~list_op() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_list_op(this);
+  }
+
   std::string print_node(size_t indent_level) const override
   {
     std::string indent = get_indent(indent_level);
@@ -511,7 +580,7 @@ struct function_body : public node
 
   std::string print_node(size_t indent_level) const override
   {
-    std::string ret = get_indent(indent_level) + "function_body(" + this->name + "):\n";
+    std::string ret = get_indent(indent_level) + "function_body(" + this->get_fqn() + "):\n";
     for (const auto & child : children) {
       ret += child->print_node(indent_level + 1);
     }
@@ -539,11 +608,16 @@ struct function_definition : public definition
 
   std::string print_node(size_t indent_level) const override
   {
-    std::string ret = get_indent(indent_level) + "function_definition(" + this->name + "):\n";
+    std::string ret = get_indent(indent_level) + "function_definition(" + this->get_fqn() + "):\n";
     for (const auto & child : children) {
       ret += child->print_node(indent_level + 1);
     }
     return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_function_definition(this);
   }
 
   void set_body(function_body * body)
@@ -582,11 +656,16 @@ struct variable_definition : public definition
   std::string print_node(size_t indent_level) const override
   {
     std::string indent = get_indent(indent_level);
-    std::string ret = indent + "variable_definition(" + this->name + "):\n";
+    std::string ret = indent + "variable_definition(" + this->get_fqn() + "):\n";
     for (const auto & child : children) {
       ret += child->print_node(indent_level + 1);
     }
     return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_variable_definition(this);
   }
 
 protected:

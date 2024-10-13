@@ -14,15 +14,16 @@
 
 #include "slc_bison.hh"
 #include <asw/slc_node.hpp>
+#include <asw/semantics.hpp>
 
 extern FILE * yyin;
 extern FILE * yyout;
 
-extern int yylex();
-extern int yyparse();
-
-extern void yyrestart(FILE * in);
-extern void yyerror(asw::slc::node *, const char * s);
+extern "C" {
+  int yyparse();
+  void yyrestart(FILE * in);
+  void yyerror(YYLTYPE *, asw::slc::node *, const char * s);
+}
 
 int main(int argc, char ** argv)
 {
@@ -36,6 +37,9 @@ int main(int argc, char ** argv)
   }
   asw::slc::node root;
   int ret = yyparse(&root);
+  if (0 != ret) {
+    return ret;
+  }
   std::string outfile_name{argv[1]};
   outfile_name += ".yml";
   FILE * out = fopen(outfile_name.c_str(), "w");
@@ -43,5 +47,10 @@ int main(int argc, char ** argv)
     fputs(root.print().c_str(), out);
     fclose(out);
   }
-  return ret;
+  /* semantic analysis */
+  asw::slc::SemanticAnalyzer & a = asw::slc::SemanticAnalyzer::get_instance();
+  if (!a.visit(&root)) {
+    return 1;
+  }
+  return 0;
 }
