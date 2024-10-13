@@ -18,7 +18,7 @@ extern char * yytext;
 %token			PLUS MINUS TIMES DIVIDE NIL
 %token  		IF NOT LIST DEFUN IMPORT OR AND XOR
 %token  		CAR CDR CONS LAMBDA BOOL STRING SQUOTE
-%token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON
+%token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON PRINT
 %token			GREATER LESS GREATER_EQ LESS_EQ EQUAL COMMA
 %code requires {#include <asw/slc_node.hpp>}
 %code requires {#include <string>}
@@ -86,8 +86,7 @@ variable_definition:
 		    $$ = new asw::slc::variable_definition();
 		    $$->add_child($4);
 		    $$->set_name($3);
-		    $$->set_location(@3.last_line, @3.last_column, yytext);
-		    // fprintf(stderr, "define variable '%s'\n", $3);
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
 		    free($3);
 		}
 		;
@@ -97,11 +96,12 @@ function_definition:
 		{
 		    /* this declaration has an input list with no bindings */
 		    $$ = new asw::slc::function_definition();
-		    $$->set_location(@3.last_line, @3.last_column, yytext);
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
 		    $$->set_name($3);
 		    free($3);
 		    $$->set_body($7);
-		    auto * tmp = new asw::slc::variable();
+		    auto * tmp = new asw::slc::variable_definition();
+                    tmp->set_location(@5.first_line, @5.first_column, yytext);
 		    tmp->set_name($5);
 		    free($5);
 		    $$->set_argument_list(tmp);
@@ -110,7 +110,7 @@ function_definition:
 		{
 		    /* this declaration has no parameters */
 		    $$ = new asw::slc::function_definition();
-		    $$->set_location(@3.last_line, @3.last_column, yytext);
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
 		    $$->set_name($3);
 		    free($3);
 		    $$->set_body($4);
@@ -173,6 +173,7 @@ list_op:	TIMES {$$ = asw::slc::op_id::TIMES;}
 	|	CONS {$$ = asw::slc::op_id::CONS;}
 	|	CDR {$$ = asw::slc::op_id::CDR;}
 	|	CAR {$$ = asw::slc::op_id::CAR;}
+        |       PRINT {$$ = asw::slc::op_id::PRINT;}
 	;
 
 unary_op:       NOT {$$ = asw::slc::op_id::NOT;}

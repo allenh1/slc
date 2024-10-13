@@ -44,6 +44,7 @@
 "float" {return FLOAT;}
 "string" {return STRING;}
 "list" {return LIST;}
+"print" {return PRINT;}
 "(" {return LPAREN;}
 ")" {return RPAREN;}
 "[" {return LBRACKET;}

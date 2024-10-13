@@ -81,6 +81,7 @@ enum class op_id
   CAR,
   CDR,
   CONS,
+  PRINT,
   INVALID,
 };
 
@@ -120,6 +121,8 @@ inline std::string op_to_str(op_id id)
       return "cdr"s;
     case op_id::CONS:
       return "cons"s;
+    case op_id::PRINT:
+      return "print"s;
     case op_id::INVALID:
       return "invalid"s;
   }
@@ -248,7 +251,7 @@ struct node
     scope_ = _scope;
   }
 
-  std::shared_ptr<scope> get_scope()
+  std::shared_ptr<scope> & get_scope()
   {
     return scope_;
   }
@@ -281,6 +284,11 @@ protected:
 struct expression : public node
 {
   ~expression() override = default;
+};
+
+struct definition : public node
+{
+  ~definition() override = default;
 };
 
 struct simple_expression : public expression
@@ -361,9 +369,10 @@ struct variable : public simple_expression
     return v->visit_variable(this);
   }
 
-  void resolve(node * /* scope */)
+  void resolve(definition * def)
   {
-    /* find the referenced variable's definition in the scope */
+    /* set pointer to the variable or function this node references */
+    resolved_definition = def;
   }
 
   std::string print_node(size_t indent_level) const override
@@ -374,11 +383,11 @@ struct variable : public simple_expression
 
   bool is_resolved() const
   {
-    return nullptr != resolved_type;
+    return nullptr != resolved_definition;
   }
 
 protected:
-  node * resolved_type = nullptr;
+  definition * resolved_definition = nullptr;
   /* referenced var stored in name */
 };
 
@@ -483,6 +492,12 @@ protected:
 struct list : public expression
 {
   ~list() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_list(this);
+  }
+
   std::string print_node(size_t indent_level) const override
   {
     std::string indent = get_indent(indent_level);
@@ -558,6 +573,11 @@ protected:
 struct function_call : public expression
 {
   ~function_call() override = default;
+  bool accept(const visitor * v) override
+  {
+    return v->visit_function_call(this);
+  }
+
   std::string print_node(size_t indent_level) const override
   {
     std::string indent = get_indent(indent_level);
@@ -573,11 +593,14 @@ protected:
   /* children: arguments */
 };
 
-struct definition : public node {};
-
 struct function_body : public node
 {
   ~function_body() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_function_body(this);
+  }
 
   std::string print_node(size_t indent_level) const override
   {
@@ -601,6 +624,30 @@ struct function_body : public node
 
 protected:
   expression * return_expression = nullptr;
+};
+
+struct variable_definition : public definition
+{
+  ~variable_definition() override = default;
+
+  std::string print_node(size_t indent_level) const override
+  {
+    std::string indent = get_indent(indent_level);
+    std::string ret = indent + "variable_definition(" + this->get_fqn() + "):\n";
+    for (const auto & child : children) {
+      ret += child->print_node(indent_level + 1);
+    }
+    return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_variable_definition(this);
+  }
+
+protected:
+  /* name */
+  /* value (expression) stored as child */
 };
 
 struct function_definition : public definition
@@ -632,47 +679,24 @@ struct function_definition : public definition
     return impl;
   }
 
-  void set_argument_list(variable * list)
+  void set_argument_list(variable_definition * list)
   {
     this->add_child(list);
     this->argument_list = list;
   }
 
-  variable * get_argument_list() const
+  variable_definition * get_argument_list() const
   {
     return argument_list;
   }
 
 protected:
   function_body * impl = nullptr;
-  variable * argument_list = nullptr;
+  variable_definition * argument_list = nullptr;
   /* name */
   /* value (expression) stored as child */
 };
 
-struct variable_definition : public definition
-{
-  ~variable_definition() override = default;
-
-  std::string print_node(size_t indent_level) const override
-  {
-    std::string indent = get_indent(indent_level);
-    std::string ret = indent + "variable_definition(" + this->get_fqn() + "):\n";
-    for (const auto & child : children) {
-      ret += child->print_node(indent_level + 1);
-    }
-    return ret;
-  }
-
-  bool accept(const visitor * v) override
-  {
-    return v->visit_variable_definition(this);
-  }
-
-protected:
-  /* name */
-  /* value (expression) stored as child */
-};
 
 } // namespace asw::slc
 #endif  // ASW__SLC_NODE_HPP_

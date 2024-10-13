@@ -18,13 +18,16 @@
 namespace asw::slc
 {
 
-struct node;
+struct function_body;
+struct function_call;
 struct function_definition;
-struct variable_definition;
-struct literal;
+struct list;
 struct list_op;
+struct literal;
+struct node;
 struct simple_expression;
 struct variable;
+struct variable_definition;
 
 struct visitor
 {
@@ -32,10 +35,12 @@ struct visitor
   virtual bool visit_simple_expression(simple_expression * const) const = 0;
   virtual bool visit_literal(literal * const) const = 0;
   virtual bool visit_variable(variable * const) const = 0;
+  virtual bool visit_function_body(function_body * const) const = 0;
+  virtual bool visit_function_call(function_call * const) const = 0;
   virtual bool visit_function_definition(function_definition * const) const = 0;
   virtual bool visit_variable_definition(variable_definition * const) const = 0;
   virtual bool visit_list_op(list_op * const) const = 0;
-
+  virtual bool visit_list(list * const) const = 0;
 };
 
 }  // namespace asw::slc
