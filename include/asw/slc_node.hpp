@@ -42,24 +42,23 @@ enum class type_id
 inline std::string type_to_str(type_id id)
 {
   using namespace std::string_literals;
-  switch(id)
-  {
-  case type_id::INT:
-    return "int"s;
-  case type_id::FLOAT:
-    return "float"s;
-  case type_id::STRING:
-    return "string"s;
-  case type_id::BOOL:
-    return "bool"s;
-  case type_id::LAMBDA:
-    return "lambda"s;
-  case type_id::LIST:
-    return "list"s;
-  case type_id::VARIABLE:
-    return "variable"s;
-  case type_id::NIL:
-    return "nil"s;
+  switch (id) {
+    case type_id::INT:
+      return "int"s;
+    case type_id::FLOAT:
+      return "float"s;
+    case type_id::STRING:
+      return "string"s;
+    case type_id::BOOL:
+      return "bool"s;
+    case type_id::LAMBDA:
+      return "lambda"s;
+    case type_id::LIST:
+      return "list"s;
+    case type_id::VARIABLE:
+      return "variable"s;
+    case type_id::NIL:
+      return "nil"s;
   }
   return "unknown_type"s;
 }
@@ -88,42 +87,41 @@ enum class op_id
 inline std::string op_to_str(op_id id)
 {
   using namespace std::string_literals;
-  switch(id)
-  {
-  case op_id::PLUS:
-    return "+"s;
-  case op_id::MINUS:
-    return "-"s;
-  case op_id::TIMES:
-    return "'*'"s;
-  case op_id::DIVIDE:
-    return "/"s;
-  case op_id::GREATER:
-    return "'>'"s;
-  case op_id::GREATER_EQ:
-    return ">="s;
-  case op_id::LESS:
-    return "<"s;
-  case op_id::LESS_EQ:
-    return "<="s;
-  case op_id::EQUAL:
-    return "="s;
-  case op_id::NOT:
-    return "not"s;
-  case op_id::OR:
-    return "or"s;
-  case op_id::AND:
-    return "and"s;
-  case op_id::XOR:
-    return "xor"s;
-  case op_id::CAR:
-    return "car"s;
-  case op_id::CDR:
-    return "cdr"s;
-  case op_id::CONS:
-    return "cons"s;
-  case op_id::INVALID:
-    return "invalid"s;
+  switch (id) {
+    case op_id::PLUS:
+      return "+"s;
+    case op_id::MINUS:
+      return "-"s;
+    case op_id::TIMES:
+      return "'*'"s;
+    case op_id::DIVIDE:
+      return "/"s;
+    case op_id::GREATER:
+      return "'>'"s;
+    case op_id::GREATER_EQ:
+      return ">="s;
+    case op_id::LESS:
+      return "<"s;
+    case op_id::LESS_EQ:
+      return "<="s;
+    case op_id::EQUAL:
+      return "="s;
+    case op_id::NOT:
+      return "not"s;
+    case op_id::OR:
+      return "or"s;
+    case op_id::AND:
+      return "and"s;
+    case op_id::XOR:
+      return "xor"s;
+    case op_id::CAR:
+      return "car"s;
+    case op_id::CDR:
+      return "cdr"s;
+    case op_id::CONS:
+      return "cons"s;
+    case op_id::INVALID:
+      return "invalid"s;
   }
   return "unknown_op"s;
 }
@@ -152,7 +150,7 @@ struct node
     for (auto * const child : children) {
       delete child;
     }
-  }  
+  }
 
   virtual bool accept(const visitor * v)
   {
@@ -230,7 +228,7 @@ struct node
   std::string get_indent(size_t indent_level) const
   {
     std::string indent = "";
-    for (size_t x = indent_level; x-- > 0;) {
+    for (size_t x = indent_level; x-- > 0; ) {
       indent += "  ";
     }
     return (indent_level >= 1) ? (indent + "- ") : (indent);
@@ -263,7 +261,9 @@ struct node
   location_info * get_location() const
   {
     if (nullptr == location_) {
-      fprintf(stderr, "internal compiler error: location unset for node '%s'\n", this->get_fqn().c_str());
+      fprintf(
+        stderr, "internal compiler error: location unset for node '%s'\n",
+        this->get_fqn().c_str());
     }
     return location_;
   }
@@ -278,7 +278,8 @@ protected:
   mutable std::string fqn{};
 };
 
-struct expression : public node {
+struct expression : public node
+{
   ~expression() override = default;
 };
 
@@ -339,10 +340,10 @@ struct literal : public simple_expression
   }
 
   template<class T>
-  void set_value(const T & val) requires (
-    std::is_same_v<T, int> ||
-    std::is_same_v<T, double> ||
-    std::is_same_v<T, std::string>) 
+  void set_value(const T & val) requires(
+    std::is_same_v<T, int>||
+    std::is_same_v<T, double>||
+    std::is_same_v<T, std::string>)
   {
     this->value = val;
   }
@@ -572,7 +573,7 @@ protected:
   /* children: arguments */
 };
 
-struct definition : public node{};
+struct definition : public node {};
 
 struct function_body : public node
 {
@@ -587,7 +588,7 @@ struct function_body : public node
     return ret;
   }
 
-  expression * get_return_expression() const    
+  expression * get_return_expression() const
   {
     return return_expression;
   }
@@ -646,7 +647,7 @@ protected:
   function_body * impl = nullptr;
   variable * argument_list = nullptr;
   /* name */
-  /* value (expression) stored as child */  
+  /* value (expression) stored as child */
 };
 
 struct variable_definition : public definition

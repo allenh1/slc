@@ -28,8 +28,7 @@ public:
 
   static SemanticAnalyzer & get_instance()
   {
-    if (nullptr == impl)
-    {
+    if (nullptr == impl) {
       impl = new SemanticAnalyzer();
     }
     return *impl;
@@ -140,7 +139,8 @@ public:
   }
 
   static bool scope_has_variable(
-    const std::string & name, const std::shared_ptr<scope> & s, variable_definition ** p_var = nullptr)
+    const std::string & name, const std::shared_ptr<scope> & s,
+    variable_definition ** p_var = nullptr)
   {
     for (variable_definition * const v : s->variables) {
       if (v->get_name() == name) {
@@ -167,11 +167,13 @@ public:
   bool visit_variable(variable * const var) const override
   {
     /* find the variable in the scope of this node's parent */
+
     return true;
   }
 
   bool scope_has_function(
-    const std::string & name, const std::shared_ptr<scope> & s, function_definition ** p_func = nullptr) const
+    const std::string & name, const std::shared_ptr<scope> & s,
+    function_definition ** p_func = nullptr) const
   {
     for (function_definition * f : s->functions) {
       if (f->get_name() == name) {

@@ -29,12 +29,14 @@ struct variable;
 struct visitor
 {
   virtual bool visit_node(node * const) const = 0;
+  virtual bool visit_simple_expression(simple_expression * const) const = 0;
+  virtual bool visit_literal(literal * const) const = 0;
+  virtual bool visit_variable(variable * const) const = 0;
   virtual bool visit_function_definition(function_definition * const) const = 0;
   virtual bool visit_variable_definition(variable_definition * const) const = 0;
-  virtual bool visit_literal(literal * const) const = 0;
   virtual bool visit_list_op(list_op * const) const = 0;
-  virtual bool visit_simple_expression(simple_expression * const) const = 0;
-  virtual bool visit_variable(variable * const) const = 0;
+
 };
+
 }  // namespace asw::slc
 #endif  // ASW__VISITOR_HPP_

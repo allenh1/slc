@@ -20,9 +20,9 @@ extern FILE * yyin;
 extern FILE * yyout;
 
 extern "C" {
-  int yyparse();
-  void yyrestart(FILE * in);
-  void yyerror(YYLTYPE *, asw::slc::node *, const char * s);
+int yyparse();
+void yyrestart(FILE * in);
+void yyerror(YYLTYPE *, asw::slc::node *, const char * s);
 }
 
 int main(int argc, char ** argv)
