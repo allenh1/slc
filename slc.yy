@@ -3,11 +3,12 @@
 #include <cstdlib>
 #include <string>
 #include <asw/slc_node.hpp>
+#include "slc_bison.hh"
 
-int yylex();
+int yylex(YYSTYPE *, YYLTYPE *);
 int yyparse(asw::slc::node * root);
 extern FILE * yyin;
-void yyerror(asw::slc::node *, const char *);
+void yyerror(YYLTYPE *, asw::slc::node *, char const *);
 extern char * yytext;
 %}
 
@@ -17,10 +18,12 @@ extern char * yytext;
 %token			PLUS MINUS TIMES DIVIDE NIL
 %token  		IF NOT LIST DEFUN IMPORT OR AND XOR
 %token  		CAR CDR CONS LAMBDA BOOL STRING SQUOTE
-%token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON
+%token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON PRINT
 %token			GREATER LESS GREATER_EQ LESS_EQ EQUAL COMMA
 %code requires {#include <asw/slc_node.hpp>}
 %code requires {#include <string>}
+%define api.pure full
+%locations
 %parse-param {asw::slc::node * root}
 %union {
     int ival;
@@ -83,7 +86,7 @@ variable_definition:
 		    $$ = new asw::slc::variable_definition();
 		    $$->add_child($4);
 		    $$->set_name($3);
-		    fprintf(stderr, "define variable '%s'\n", $3);
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
 		    free($3);
 		}
 		;
@@ -93,10 +96,12 @@ function_definition:
 		{
 		    /* this declaration has an input list with no bindings */
 		    $$ = new asw::slc::function_definition();
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
 		    $$->set_name($3);
 		    free($3);
 		    $$->set_body($7);
-		    auto * tmp = new asw::slc::variable();
+		    auto * tmp = new asw::slc::variable_definition();
+                    tmp->set_location(@5.first_line, @5.first_column, yytext);
 		    tmp->set_name($5);
 		    free($5);
 		    $$->set_argument_list(tmp);
@@ -105,6 +110,7 @@ function_definition:
 		{
 		    /* this declaration has no parameters */
 		    $$ = new asw::slc::function_definition();
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
 		    $$->set_name($3);
 		    free($3);
 		    $$->set_body($4);
@@ -121,6 +127,7 @@ formals:	formals COMMA formal
 formal:		IDENTIFIER COLON type
 		{
 		  $$ = new asw::slc::formal();
+		  $$->set_location(@1.last_line, @1.last_column, yytext);
 		  $$->set_name($1);
 		  $$->set_type($3);
 		  free($1);
@@ -143,7 +150,8 @@ body:	        stmt body
 	|	expression  // function body must end in an expression
 		{
 		    $$ = new asw::slc::function_body();
-		    $$->set_name(std::string(std::to_string(@1.last_line) + "_" + std::to_string(@1.last_column)));
+		    $$->set_name(std::string("expression_") + std::to_string(@1.last_line) + "_" + std::to_string(@1.last_column));
+		    $$->set_location(@1.last_line, @1.last_column, yytext);
 		    $$->set_return_expression($1);
 		}
 	;
@@ -165,6 +173,7 @@ list_op:	TIMES {$$ = asw::slc::op_id::TIMES;}
 	|	CONS {$$ = asw::slc::op_id::CONS;}
 	|	CDR {$$ = asw::slc::op_id::CDR;}
 	|	CAR {$$ = asw::slc::op_id::CAR;}
+        |       PRINT {$$ = asw::slc::op_id::PRINT;}
 	;
 
 unary_op:       NOT {$$ = asw::slc::op_id::NOT;}
@@ -176,12 +185,14 @@ expressions:	expressions expression
 		    /* go to the end of the list */
 		    for (; iter->get_tail() != nullptr; iter = iter->get_tail());
 		    iter->set_tail(new asw::slc::list());
+		    iter->get_tail()->set_location(@1.last_line, @1.last_column, yytext);
 		    iter->get_tail()->set_head($2);
 		    $$ = $1;
 		}
 	|       expression
 		{
 		    $$ = new asw::slc::list();
+		    $$->set_location(@1.last_line, @1.last_column, yytext);
 		    $$->set_head($1);
 		}
 	;
@@ -190,6 +201,7 @@ expression:	LPAREN LAMBDA formals body RPAREN
 	|	LPAREN IF expression expression expression RPAREN
 		{
 		    $$ = new asw::slc::if_expr();
+		    $$->set_location(@2.last_line, @2.last_column, yytext);
 		    $$->set_name(
 			std::string("if_stmt_") +
 			std::to_string(@3.first_line) + "_" + std::to_string(@3.first_column));
@@ -249,6 +261,7 @@ expression:	LPAREN LAMBDA formals body RPAREN
 sexpr:	        IDENTIFIER
 		{
 		    $$ = new asw::slc::variable();
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		    $$->set_name($1);
 		    free($1);
 		}
@@ -284,7 +297,7 @@ sexpr:	        IDENTIFIER
 
 %%
 
-void yyerror(asw::slc::node *, const char * s) {
-  fprintf(stderr, "Parser error: '%s'\n", s);
+void yyerror(YYLTYPE * locp, asw::slc::node *, char const * msg) {
+  fprintf(stderr, "error: %d:%d: '%s'\n", locp->last_line, locp->last_column, msg);
   exit(1);
 }
