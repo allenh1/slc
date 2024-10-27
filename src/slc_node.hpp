@@ -15,8 +15,8 @@
 #include <asw/slc_node.hpp>
 
 #define utilities_impl(type) \
-  bool node::is_ ## type () const { return this->as_ ## type () != nullptr; } \
-  type node::* as_ ## type () const { return dynamic_cast<const type *>(this); }
+  bool node::is_ ## type() const {return this->as_ ## type() != nullptr;} \
+  type node::* as_ ## type() const {return dynamic_cast<const type *>(this);}
 
 namespace asw::slc
 {

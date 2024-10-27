@@ -76,7 +76,7 @@ struct codegen : public llvm_visitor
   {
     return module_;
   }
-  
+
   template<class ... Args>
   void internal_compiler_error(const char * fmt, Args && ... args) const
   {
@@ -116,7 +116,7 @@ struct codegen : public llvm_visitor
   }
 #else
   template<class ... Args>
-  void debug(const char *, node * const, Args && ...) const{}
+  void debug(const char *, node * const, Args && ...) const {}
 #endif  // DEBUG
 
 private:

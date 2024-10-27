@@ -75,39 +75,41 @@ struct type_info
     return !(*this == rhs);
   }
 
-  template<class... Args>
+  template<class ... Args>
   bool compatible(type_id arg, Args ... args) const
   {
-    return ((arg == args) || ...);
+    return (arg == args) || ...;
   }
 
   bool converts_to(type_info * other) const
   {
     if ((this->type == type_id::LIST) && (other->type == type_id::LIST)) {
       return this->subtype && other->subtype &&
-        this->subtype->converts_to(other->subtype);
+             this->subtype->converts_to(other->subtype);
     }
-    switch(type) {
-    case type_id::INT:
-      return compatible(
-        other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL);
-    case type_id::FLOAT:
-      return compatible(
-        other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL);
-    case type_id::BOOL:
-      return compatible(
-        other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL);
-    case type_id::LAMBDA:
-      return other->type == type_id::LAMBDA;
-    case type_id::STRING:
-      return compatible(other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL, type_id::LIST);
-    case type_id::VARIABLE:
-    case type_id::NIL:
-    case type_id::LIST:
-      return compatible(
-        other->type, type_id::BOOL);
-    case type_id::INVALID:
-      return false;
+    switch (type) {
+      case type_id::INT:
+        return compatible(
+          other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL);
+      case type_id::FLOAT:
+        return compatible(
+          other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL);
+      case type_id::BOOL:
+        return compatible(
+          other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL);
+      case type_id::LAMBDA:
+        return other->type == type_id::LAMBDA;
+      case type_id::STRING:
+        return compatible(
+          other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL,
+          type_id::LIST);
+      case type_id::VARIABLE:
+      case type_id::NIL:
+      case type_id::LIST:
+        return compatible(
+          other->type, type_id::BOOL);
+      case type_id::INVALID:
+        return false;
     }
     return false;
   }

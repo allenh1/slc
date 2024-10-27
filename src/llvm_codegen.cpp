@@ -39,8 +39,10 @@ void codegen::_insert_slc_int_list_functions() const
   /* slc_int_list */
   llvm::Type * slc_int_list_type = llvm::PointerType::getInt64Ty(*context_)->getPointerTo();
   std::vector<llvm::Type *> args_slc_int_list_destroy = {slc_int_list_type};
-  std::vector<llvm::Type *> args_slc_int_list_set_head = {slc_int_list_type, llvm::Type::getInt64Ty(*context_)};
-  std::vector<llvm::Type *> args_slc_int_list_cons = {llvm::Type::getInt64Ty(*context_), slc_int_list_type};
+  std::vector<llvm::Type *> args_slc_int_list_set_head = {slc_int_list_type, llvm::Type::getInt64Ty(
+      *context_)};
+  std::vector<llvm::Type *> args_slc_int_list_cons =
+  {llvm::Type::getInt64Ty(*context_), slc_int_list_type};
   llvm::FunctionType * slc_int_list_create = llvm::FunctionType::get(
     slc_int_list_type, false);
   llvm::FunctionType * slc_int_list_destroy = llvm::FunctionType::get(
@@ -66,21 +68,45 @@ void codegen::_insert_slc_int_list_functions() const
   llvm::FunctionType * slc_int_list_divide = llvm::FunctionType::get(
     llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
   /* utility */
-  llvm::Function::Create(slc_int_list_create, llvm::Function::ExternalLinkage, "slc_int_list_create", module_.get());
-  llvm::Function::Create(slc_int_list_destroy, llvm::Function::ExternalLinkage, "slc_int_list_destroy", module_.get());
-  llvm::Function::Create(slc_int_list_init, llvm::Function::ExternalLinkage, "slc_int_list_init", module_.get());
-  llvm::Function::Create(slc_int_list_fini, llvm::Function::ExternalLinkage, "slc_int_list_fini", module_.get());
-  llvm::Function::Create(slc_int_list_set_head, llvm::Function::ExternalLinkage, "slc_int_list_set_head", module_.get());
+  llvm::Function::Create(
+    slc_int_list_create, llvm::Function::ExternalLinkage,
+    "slc_int_list_create", module_.get());
+  llvm::Function::Create(
+    slc_int_list_destroy, llvm::Function::ExternalLinkage,
+    "slc_int_list_destroy", module_.get());
+  llvm::Function::Create(
+    slc_int_list_init, llvm::Function::ExternalLinkage, "slc_int_list_init",
+    module_.get());
+  llvm::Function::Create(
+    slc_int_list_fini, llvm::Function::ExternalLinkage, "slc_int_list_fini",
+    module_.get());
+  llvm::Function::Create(
+    slc_int_list_set_head, llvm::Function::ExternalLinkage,
+    "slc_int_list_set_head", module_.get());
   /* unary ops */
-  llvm::Function::Create(slc_int_list_car, llvm::Function::ExternalLinkage, "slc_int_list_car", module_.get());
-  llvm::Function::Create(slc_int_list_cdr, llvm::Function::ExternalLinkage, "slc_int_list_cdr", module_.get());
+  llvm::Function::Create(
+    slc_int_list_car, llvm::Function::ExternalLinkage, "slc_int_list_car",
+    module_.get());
+  llvm::Function::Create(
+    slc_int_list_cdr, llvm::Function::ExternalLinkage, "slc_int_list_cdr",
+    module_.get());
   /* binary ops */
-  llvm::Function::Create(slc_int_list_cons, llvm::Function::ExternalLinkage, "slc_int_list_cons", module_.get());
+  llvm::Function::Create(
+    slc_int_list_cons, llvm::Function::ExternalLinkage, "slc_int_list_cons",
+    module_.get());
   /* list ops */
-  llvm::Function::Create(slc_int_list_add, llvm::Function::ExternalLinkage, "slc_int_list_add", module_.get());
-  llvm::Function::Create(slc_int_list_subtract, llvm::Function::ExternalLinkage, "slc_int_list_subtract", module_.get());
-  llvm::Function::Create(slc_int_list_multiply, llvm::Function::ExternalLinkage, "slc_int_list_multiply", module_.get());
-  llvm::Function::Create(slc_int_list_divide, llvm::Function::ExternalLinkage, "slc_int_list_divide", module_.get());
+  llvm::Function::Create(
+    slc_int_list_add, llvm::Function::ExternalLinkage, "slc_int_list_add",
+    module_.get());
+  llvm::Function::Create(
+    slc_int_list_subtract, llvm::Function::ExternalLinkage,
+    "slc_int_list_subtract", module_.get());
+  llvm::Function::Create(
+    slc_int_list_multiply, llvm::Function::ExternalLinkage,
+    "slc_int_list_multiply", module_.get());
+  llvm::Function::Create(
+    slc_int_list_divide, llvm::Function::ExternalLinkage,
+    "slc_int_list_divide", module_.get());
 }
 
 llvm::Value * codegen::LogErrorV(const char * s) const
@@ -93,17 +119,16 @@ llvm::Value * codegen::LogErrorV(const char * s) const
 llvm::Value * codegen::visit_literal(literal * const l) const
 {
   debug("visit_literal\n", l);
-  switch (l->get_type()->type)
-  {
-  case type_id::INT:
-    return llvm::ConstantInt::getSigned(llvm::Type::getInt64Ty(*context_), l->get_int());
-  case type_id::FLOAT:
-    return llvm::ConstantFP::get(*context_, llvm::APFloat(l->get_double()));
-  case type_id::STRING:
-    /* TODO */
-    return LogErrorV("strings are not implemented");
-  default:
-    break;
+  switch (l->get_type()->type) {
+    case type_id::INT:
+      return llvm::ConstantInt::getSigned(llvm::Type::getInt64Ty(*context_), l->get_int());
+    case type_id::FLOAT:
+      return llvm::ConstantFP::get(*context_, llvm::APFloat(l->get_double()));
+    case type_id::STRING:
+      /* TODO */
+      return LogErrorV("strings are not implemented");
+    default:
+      break;
   }
   return LogErrorV("unknown literal");
 }
@@ -118,7 +143,7 @@ llvm::Value * codegen::_convert_to_float(llvm::Value * val, const type_id _type)
     case type_id::FLOAT:
       return val;
     case type_id::STRING:
-    /* TODO */
+      /* TODO */
       return LogErrorV("strings are not implemented");
     default:
       return LogErrorV("conversion from invalid type");
@@ -136,7 +161,7 @@ llvm::Value * codegen::_convert_to_bool(llvm::Value * val, const type_id _type) 
     case type_id::FLOAT:
       return builder_->CreateFPToUI(val, llvm::Type::getInt1Ty(*context_), "booltmp");
     case type_id::STRING:
-    /* TODO */
+      /* TODO */
       return LogErrorV("strings are not implemented");
     default:
       return LogErrorV("conversion from invalid type");
@@ -154,7 +179,7 @@ llvm::Value * codegen::_convert_to_int(llvm::Value * val, const type_id _type) c
     case type_id::FLOAT:
       return builder_->CreateFPToSI(val, llvm::Type::getInt64Ty(*context_), "inttmp");
     case type_id::STRING:
-    /* TODO */
+      /* TODO */
       return LogErrorV("strings are not implemented");
     default:
       return LogErrorV("conversion from invalid type");
@@ -173,59 +198,58 @@ llvm::Value * codegen::visit_binary_op(binary_op * const op) const
   /* 0: eq, 1: gt, 2: lt, 3: ge, 4: le */
   std::vector<llvm::CmpInst::Predicate> predicates(5);
   /* check if the types are consistent, and see if we need to convert */
-  switch(lhs->get_type()->type)
-  {
-  case type_id::INT:
-    R = _convert_to_int(R, rhs->get_type()->type);
-    predicates = {
-      llvm::CmpInst::Predicate::ICMP_EQ,
-      llvm::CmpInst::Predicate::ICMP_SGT,
-      llvm::CmpInst::Predicate::ICMP_SLT,
-      llvm::CmpInst::Predicate::ICMP_SGE,
-      llvm::CmpInst::Predicate::ICMP_SLE,
-    };
-    break;
-  case type_id::BOOL:
-    R = _convert_to_bool(R, rhs->get_type()->type);
-    predicates = {
-      llvm::CmpInst::Predicate::ICMP_EQ,
-      llvm::CmpInst::Predicate::ICMP_UGT,
-      llvm::CmpInst::Predicate::ICMP_ULT,
-      llvm::CmpInst::Predicate::ICMP_UGE,
-      llvm::CmpInst::Predicate::ICMP_ULE,
-    };
-    break;
-  case type_id::FLOAT:
-    R = _convert_to_float(R, rhs->get_type()->type);
-    predicates = {
-      llvm::CmpInst::Predicate::FCMP_UEQ,
-      llvm::CmpInst::Predicate::FCMP_UGT,
-      llvm::CmpInst::Predicate::FCMP_ULT,
-      llvm::CmpInst::Predicate::FCMP_UGE,
-      llvm::CmpInst::Predicate::FCMP_ULE,
-    };
-    break;
-  default:
-    break;
+  switch (lhs->get_type()->type) {
+    case type_id::INT:
+      R = _convert_to_int(R, rhs->get_type()->type);
+      predicates = {
+        llvm::CmpInst::Predicate::ICMP_EQ,
+        llvm::CmpInst::Predicate::ICMP_SGT,
+        llvm::CmpInst::Predicate::ICMP_SLT,
+        llvm::CmpInst::Predicate::ICMP_SGE,
+        llvm::CmpInst::Predicate::ICMP_SLE,
+      };
+      break;
+    case type_id::BOOL:
+      R = _convert_to_bool(R, rhs->get_type()->type);
+      predicates = {
+        llvm::CmpInst::Predicate::ICMP_EQ,
+        llvm::CmpInst::Predicate::ICMP_UGT,
+        llvm::CmpInst::Predicate::ICMP_ULT,
+        llvm::CmpInst::Predicate::ICMP_UGE,
+        llvm::CmpInst::Predicate::ICMP_ULE,
+      };
+      break;
+    case type_id::FLOAT:
+      R = _convert_to_float(R, rhs->get_type()->type);
+      predicates = {
+        llvm::CmpInst::Predicate::FCMP_UEQ,
+        llvm::CmpInst::Predicate::FCMP_UGT,
+        llvm::CmpInst::Predicate::FCMP_ULT,
+        llvm::CmpInst::Predicate::FCMP_UGE,
+        llvm::CmpInst::Predicate::FCMP_ULE,
+      };
+      break;
+    default:
+      break;
   }
   /* types are consistent, do the comparison */
   switch (op->get_op()) {
-  case op_id::EQUAL:
-    return builder_->CreateCmp(predicates[0], L, R, "cmptmp");
-  case op_id::GREATER:
-  {
-    return builder_->CreateCmp(predicates[1], L, R, "cmptmp");
-  }
-  case op_id::LESS:
-    return builder_->CreateCmp(predicates[2], L, R, "cmptmp");
-  case op_id::GREATER_EQ:
-    return builder_->CreateCmp(predicates[3], L, R, "cmptmp");
-  case op_id::LESS_EQ:
-    return builder_->CreateCmp(predicates[4], L, R, "cmptmp");
-  case op_id::CONS:
-    return LogErrorV("unimplemented binary operation");
-  default:
-    return LogErrorV("invalid binary operation");
+    case op_id::EQUAL:
+      return builder_->CreateCmp(predicates[0], L, R, "cmptmp");
+    case op_id::GREATER:
+      {
+        return builder_->CreateCmp(predicates[1], L, R, "cmptmp");
+      }
+    case op_id::LESS:
+      return builder_->CreateCmp(predicates[2], L, R, "cmptmp");
+    case op_id::GREATER_EQ:
+      return builder_->CreateCmp(predicates[3], L, R, "cmptmp");
+    case op_id::LESS_EQ:
+      return builder_->CreateCmp(predicates[4], L, R, "cmptmp");
+    case op_id::CONS:
+      return LogErrorV("unimplemented binary operation");
+    default:
+      return LogErrorV("invalid binary operation");
   }
   return LogErrorV("unknown error");
 }
@@ -283,8 +307,8 @@ llvm::Type * codegen::_type_id_to_llvm(const type_id id) const
       return llvm::Type::getDoubleTy(*context_);
     case type_id::BOOL:
       return llvm::Type::getInt1Ty(*context_);
-  default:
-    return nullptr;
+    default:
+      return nullptr;
   }
   return nullptr;
 }
@@ -299,14 +323,14 @@ llvm::Value * codegen::visit_variable_definition(variable_definition * const v) 
     }
     llvm::FunctionType * init_impl;
     switch (v->get_type()->type) {
-    case type_id::INT:
-      type_ = llvm::Type::getInt64Ty(*context_);
-      break;
-    case type_id::FLOAT:
-      type_ = llvm::Type::getDoubleTy(*context_);
-      break;
-    default:
-      return LogErrorV("unimplemented global type");
+      case type_id::INT:
+        type_ = llvm::Type::getInt64Ty(*context_);
+        break;
+      case type_id::FLOAT:
+        type_ = llvm::Type::getDoubleTy(*context_);
+        break;
+      default:
+        return LogErrorV("unimplemented global type");
     }
     llvm::GlobalVariable * gv = new llvm::GlobalVariable(
       *module_, type_, false, llvm::GlobalValue::CommonLinkage, 0, v->get_name());
@@ -352,21 +376,21 @@ llvm::Value * codegen::_visit_list_op_int(list_op * const op) const
     op->get_children()[0]->accept(this),
   };
   llvm::Function * op_impl;
-  switch(op->get_op()) {
-  case op_id::PLUS:
-    op_impl = module_->getFunction("slc_int_list_add");
-    break;
-  case op_id::MINUS:
-    op_impl = module_->getFunction("slc_int_list_subtract");
-    break;
-  case op_id::TIMES:
-    op_impl = module_->getFunction("slc_int_list_multiply");
-    break;
-  case op_id::DIVIDE:
-    op_impl = module_->getFunction("slc_int_list_divide");
-    break;
-  default:
-    return LogErrorV("not a list op");
+  switch (op->get_op()) {
+    case op_id::PLUS:
+      op_impl = module_->getFunction("slc_int_list_add");
+      break;
+    case op_id::MINUS:
+      op_impl = module_->getFunction("slc_int_list_subtract");
+      break;
+    case op_id::TIMES:
+      op_impl = module_->getFunction("slc_int_list_multiply");
+      break;
+    case op_id::DIVIDE:
+      op_impl = module_->getFunction("slc_int_list_divide");
+      break;
+    default:
+      return LogErrorV("not a list op");
   }
   return builder_->CreateCall(op_impl, args);
 }
@@ -410,15 +434,15 @@ llvm::Value * codegen::_visit_unary_op_int_list(unary_op * const op) const
   std::vector<llvm::Value *> args = {
     arg
   };
-  switch(op->get_op()) {
-  case op_id::CAR:
-    op_impl = module_->getFunction("slc_int_list_car");
-    break;
-  case op_id::CDR:
-    op_impl = module_->getFunction("slc_int_list_cdr");
-    break;
-  default:
-    return LogErrorV("unimplemented unary op");
+  switch (op->get_op()) {
+    case op_id::CAR:
+      op_impl = module_->getFunction("slc_int_list_car");
+      break;
+    case op_id::CDR:
+      op_impl = module_->getFunction("slc_int_list_cdr");
+      break;
+    default:
+      return LogErrorV("unimplemented unary op");
   }
   return builder_->CreateCall(op_impl, args);
 }
@@ -428,4 +452,3 @@ llvm::Value * codegen::visit_variable(variable * const) const
   return LogErrorV("visit_variable");
 }
 }  // namespace asw::slc::LLVM
-

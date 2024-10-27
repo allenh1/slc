@@ -60,8 +60,8 @@ struct visitor_interface
   virtual return_type visit_variable(variable * const) const = 0;
 };
 
-struct visitor : public visitor_interface<bool>{};
-struct llvm_visitor : public visitor_interface<llvm::Value *>{};
+struct visitor : public visitor_interface<bool> {};
+struct llvm_visitor : public visitor_interface<llvm::Value *> {};
 
 }  // namespace asw::slc
 #endif  // ASW__VISITOR_HPP_

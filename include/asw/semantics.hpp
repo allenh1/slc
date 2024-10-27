@@ -68,45 +68,48 @@ public:
     expression * lhs = dynamic_cast<expression *>(op->get_children()[0]);
     expression * rhs = dynamic_cast<expression *>(op->get_children()[1]);
     auto is_int = [](expression * expr) -> bool {return expr->get_type()->type == type_id::INT;};
-    auto is_float = [](expression * expr) -> bool {return expr->get_type()->type == type_id::FLOAT;};
+    auto is_float =
+      [](expression * expr) -> bool {return expr->get_type()->type == type_id::FLOAT;};
     auto is_list = [](expression * expr) -> bool {return expr->get_type()->type == type_id::LIST;};
-    switch(op->get_op()) {
-    case op_id::GREATER:
-    case op_id::GREATER_EQ:
-    case op_id::LESS:
-    case op_id::LESS_EQ:
-    case op_id::EQUAL:
-    {
-      if (!((is_int(lhs) || is_float(lhs)) && (is_int(rhs) || is_float(rhs)))) {
-        error("invalid operands for binary operator '%s'\n", op, op_to_str(op->get_op()).c_str());
+    switch (op->get_op()) {
+      case op_id::GREATER:
+      case op_id::GREATER_EQ:
+      case op_id::LESS:
+      case op_id::LESS_EQ:
+      case op_id::EQUAL:
+        {
+          if (!((is_int(lhs) || is_float(lhs)) && (is_int(rhs) || is_float(rhs)))) {
+            error(
+              "invalid operands for binary operator '%s'\n", op,
+              op_to_str(op->get_op()).c_str());
+            return false;
+          }
+          op->set_type(type_id::BOOL);
+          return true;
+        }
+      case op_id::CONS:
+        {
+          if (!(!lhs->is_list() && is_list(rhs))) {
+            error("invalid operands for binary operator 'cons'\n", op);
+            return false;
+          }
+          type_info tmp;
+          tmp.type = type_id::LIST;
+          tmp.subtype = new type_info(*lhs->get_type());
+          if (!tmp.converts_to(rhs->get_type())) {
+            error(
+              "cannot covert type '%s' to '%s' in 'cons'\n",
+              lhs, type_to_str(lhs->get_type()).c_str(), type_to_str(rhs->get_type()).c_str()
+            );
+            return false;
+          }
+          op->set_type(new type_info(tmp));
+          return true;
+        }
+      default:
+        debug("operator\n", op);
+        internal_compiler_error("operator is not a binary operator\n");
         return false;
-      }
-      op->set_type(type_id::BOOL);
-      return true;
-    }
-    case op_id::CONS:
-    {
-      if (!(!lhs->is_list() && is_list(rhs))) {
-        error("invalid operands for binary operator 'cons'\n", op);
-        return false;
-      }
-      type_info tmp;
-      tmp.type = type_id::LIST;
-      tmp.subtype = new type_info(*lhs->get_type());
-      if (!tmp.converts_to(rhs->get_type())) {
-        error(
-          "cannot covert type '%s' to '%s' in 'cons'\n",
-          lhs, type_to_str(lhs->get_type()).c_str(), type_to_str(rhs->get_type()).c_str()
-        );
-        return false;
-      }
-      op->set_type(new type_info(tmp));
-      return true;
-    }
-    default:
-      debug("operator\n", op);
-      internal_compiler_error("operator is not a binary operator\n");
-      return false;
     }
     return true;
   }
@@ -372,57 +375,56 @@ public:
       internal_compiler_error("unresolved subtype for list '%s'\n", list_->get_fqn().c_str());
       return false;
     }
-    switch(op->get_op())
-    {
-    case op_id::PLUS:
-      if (list_t->subtype->type == type_id::INT ||
+    switch (op->get_op()) {
+      case op_id::PLUS:
+        if (list_t->subtype->type == type_id::INT ||
           list_t->subtype->type == type_id::FLOAT ||
           list_t->subtype->type == type_id::BOOL ||
           list_t->subtype->type == type_id::STRING ||
           list_t->subtype->type == type_id::LIST)
-      {
-        op->set_type(new type_info(*list_t->subtype));
-        return true;
-      }
-      error("invalid operands for list operator '%s'\n", op, op_to_str(op->get_op()).c_str());
-      return false;
-    case op_id::MINUS:
-    case op_id::TIMES:
-    case op_id::DIVIDE:
-      if (list_t->subtype->type == type_id::INT ||
+        {
+          op->set_type(new type_info(*list_t->subtype));
+          return true;
+        }
+        error("invalid operands for list operator '%s'\n", op, op_to_str(op->get_op()).c_str());
+        return false;
+      case op_id::MINUS:
+      case op_id::TIMES:
+      case op_id::DIVIDE:
+        if (list_t->subtype->type == type_id::INT ||
           list_t->subtype->type == type_id::FLOAT)
-      {
-        op->set_type(new type_info(*list_t->subtype));
-        return true;
-      }
-      error(
-        "invalid operands for list operator '%s': expected list, but got '%s'\n",
-        op, op_to_str(op->get_op()).c_str(), type_to_str(list_t).c_str());
-      return false;
-    case op_id::OR:
-    case op_id::AND:
-    case op_id::XOR:
-    case op_id::NOT:
-      if (list_t->subtype->type == type_id::INT ||
+        {
+          op->set_type(new type_info(*list_t->subtype));
+          return true;
+        }
+        error(
+          "invalid operands for list operator '%s': expected list, but got '%s'\n",
+          op, op_to_str(op->get_op()).c_str(), type_to_str(list_t).c_str());
+        return false;
+      case op_id::OR:
+      case op_id::AND:
+      case op_id::XOR:
+      case op_id::NOT:
+        if (list_t->subtype->type == type_id::INT ||
           list_t->subtype->type == type_id::FLOAT ||
           list_t->subtype->type == type_id::BOOL ||
           list_t->subtype->type == type_id::STRING ||
           list_t->subtype->type == type_id::LIST)
-      {
-        op->set_type(type_id::BOOL);
+        {
+          op->set_type(type_id::BOOL);
+          return true;
+        }
+        error("invalid operands for list operator '%s'\n", op, op_to_str(op->get_op()).c_str());
+        return false;
+      case op_id::PRINT:
+        /* check the first argument is a string */
+        /* int because printf returns an int */
+        op->set_type(type_id::INT);
         return true;
-      }
-      error("invalid operands for list operator '%s'\n", op, op_to_str(op->get_op()).c_str());
-      return false;
-    case op_id::PRINT:
-      /* check the first argument is a string */
-      /* int because printf returns an int */
-      op->set_type(type_id::INT);
-      return true;
-    default:
-      debug("invalid operation\n", op);
-      internal_compiler_error("operator is not a list operator\n");
-      return false;
+      default:
+        debug("invalid operation\n", op);
+        internal_compiler_error("operator is not a list operator\n");
+        return false;
     }
     return ret;
   }
@@ -485,7 +487,7 @@ public:
     type_info & child_t = *op->get_children()[0]->get_type();
     if (op->get_op() == op_id::NOT) {
       if (child_t.type == type_id::INVALID ||
-          child_t.type == type_id::VARIABLE)
+        child_t.type == type_id::VARIABLE)
       {
         internal_compiler_error("unresolved type for not operator\n");
         return false;
@@ -611,7 +613,7 @@ public:
   }
 #else
   template<class ... Args>
-  void debug(const char *, node * const, Args && ...) const{}
+  void debug(const char *, node * const, Args && ...) const {}
 #endif  // DEBUG
 
 private:

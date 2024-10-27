@@ -30,8 +30,8 @@
 
 /* add helper functions for casting */
 #define utilities(type) \
-  bool is_ ## type (); \
-  type * as_ ## type ();
+  bool is_ ## type(); \
+  type * as_ ## type();
 
 namespace asw::slc
 {
@@ -324,7 +324,7 @@ struct node
   utilities(function_call)
   utilities(function_body)
   utilities(variable_definition)
-  utilities(function_definition) 
+  utilities(function_definition)
 
 protected:
   node * parent_ = nullptr;
