@@ -2,6 +2,7 @@
 %option bison-bridge
 %option bison-locations
 %option yylineno
+%option nounput
 %{
 #include <cstdio>
 
@@ -45,6 +46,7 @@
 "string" {return STRING;}
 "list" {return LIST;}
 "print" {return PRINT;}
+"nil" {return NIL;}
 "(" {return LPAREN;}
 ")" {return RPAREN;}
 "[" {return LBRACKET;}

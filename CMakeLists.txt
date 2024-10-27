@@ -5,20 +5,41 @@ project(slc VERSION 0.0.0)
 find_package(BISON)
 find_package(FLEX)
 
+# find LLVM
+find_package(LLVM REQUIRED CONFIG)
+llvm_map_components_to_libnames(llvm_libs core native)
+
 # set CXXFLAGS
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -ggdb3 -fsanitize=address -O0")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -ggdb3 -fsanitize=address -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O2")
 
 # generated files
-bison_target(Parser slc.yy ${CMAKE_CURRENT_BINARY_DIR}/slc_bison.cc)
+bison_target(
+  Parser slc.yy ${CMAKE_CURRENT_BINARY_DIR}/slc_bison.cc
+  # COMPILE_FLAGS -Wcounterexamples
+)
 flex_target(Scanner slc.ll ${CMAKE_CURRENT_BINARY_DIR}/slc_flex.cc)
 
 add_flex_bison_dependency(Scanner Parser)
 
 set(sources
   src/main.cpp
-) 
+  src/slc_node.cpp
+  src/llvm_codegen.cpp
+)
+
+set(runtime_lib_srcs
+  src/runtime/slc_int_list.c
+)
+
+add_library(slc_runtime
+  ${runtime_lib_srcs}
+)
+target_include_directories(slc_runtime PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
 
 add_executable(slc
   ${sources}
@@ -28,10 +49,12 @@ add_executable(slc
 target_include_directories(slc PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+  $<BUILD_INTERFACE:${LLVM_INCLUDE_DIRS}>
 )
-
-# target_link_libraries(slc Threads::Threads)
-
+separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+add_definitions(${LLVM_DEFINITIONS_LIST})
+target_link_libraries(slc ${llvm_libs})
 set_property(TARGET slc PROPERTY CXX_STANDARD 20)
 
 install(TARGETS slc DESTINATION bin)
+install(TARGETS slc_runtime DESTINATION lib)

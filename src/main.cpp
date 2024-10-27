@@ -27,6 +27,8 @@ void yyerror(YYLTYPE *, asw::slc::node *, const char * s);
 
 int main(int argc, char ** argv)
 {
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
   if (argc != 2) {
     fprintf(stderr, "Invalid args.\n");
     return 1;
@@ -34,6 +36,7 @@ int main(int argc, char ** argv)
   yyin = fopen(argv[1], "r");
   if (NULL == yyin) {
     fprintf(stderr, "Cannot read input from '%s'.\n", argv[1]);
+    return 2;
   }
   asw::slc::node root;
   int ret = yyparse(&root);
@@ -52,5 +55,8 @@ int main(int argc, char ** argv)
   if (!a.visit(&root)) {
     return 1;
   }
-  return 0;
+  asw::slc::LLVM::codegen llvm_codegen;
+  llvm::Value * ir = llvm_codegen.visit(&root);
+  llvm_codegen.get_mod()->print(llvm::errs(), nullptr);
+  return ir == nullptr;
 }

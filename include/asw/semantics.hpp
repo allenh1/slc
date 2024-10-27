@@ -34,14 +34,92 @@ public:
     return *impl;
   }
 
-  bool visit(node * const n)
+  bool visit(node * const n) const
   {
-    return n->accept(this);
+    if (n->visited()) {
+      return true;
+    }
+    n->mark_visiting();
+    bool ret = n->accept(this);
+    n->mark_visited();
+    return ret;
+  }
+
+  bool visit_children(node * const n) const
+  {
+    for (node * const child : n->get_children()) {
+      if (child->visited()) {
+        continue;
+      }
+      child->mark_visiting();
+      if (!child->accept(this)) {
+        return false;
+      }
+      child->mark_visited();
+    }
+    return true;
+  }
+
+  bool visit_binary_op(binary_op * const op) const override
+  {
+    if (!visit_children(op)) {
+      return false;
+    }
+    expression * lhs = dynamic_cast<expression *>(op->get_children()[0]);
+    expression * rhs = dynamic_cast<expression *>(op->get_children()[1]);
+    auto is_int = [](expression * expr) -> bool {return expr->get_type()->type == type_id::INT;};
+    auto is_float = [](expression * expr) -> bool {return expr->get_type()->type == type_id::FLOAT;};
+    auto is_list = [](expression * expr) -> bool {return expr->get_type()->type == type_id::LIST;};
+    switch(op->get_op()) {
+    case op_id::GREATER:
+    case op_id::GREATER_EQ:
+    case op_id::LESS:
+    case op_id::LESS_EQ:
+    case op_id::EQUAL:
+    {
+      if (!((is_int(lhs) || is_float(lhs)) && (is_int(rhs) || is_float(rhs)))) {
+        error("invalid operands for binary operator '%s'\n", op, op_to_str(op->get_op()).c_str());
+        return false;
+      }
+      op->set_type(type_id::BOOL);
+      return true;
+    }
+    case op_id::CONS:
+    {
+      if (!(!lhs->is_list() && is_list(rhs))) {
+        error("invalid operands for binary operator 'cons'\n", op);
+        return false;
+      }
+      type_info tmp;
+      tmp.type = type_id::LIST;
+      tmp.subtype = new type_info(*lhs->get_type());
+      if (!tmp.converts_to(rhs->get_type())) {
+        error(
+          "cannot covert type '%s' to '%s' in 'cons'\n",
+          lhs, type_to_str(lhs->get_type()).c_str(), type_to_str(rhs->get_type()).c_str()
+        );
+        return false;
+      }
+      op->set_type(new type_info(tmp));
+      return true;
+    }
+    default:
+      debug("operator\n", op);
+      internal_compiler_error("operator is not a binary operator\n");
+      return false;
+    }
+    return true;
+  }
+
+  bool visit_formal(formal * const) const override
+  {
+    return false;
   }
 
   bool visit_node(node * const n) const override
   {
     /* root node */
+    n->mark_visiting();
     if (n->is_root()) {
       /* create the global scope */
       n->set_scope(std::make_shared<scope>());
@@ -49,34 +127,9 @@ public:
       internal_compiler_error("visit_node called for non-root node: '%s'\n", n->get_fqn().c_str());
       return false;
     }
-    return visit_children(n);
-  }
-
-  bool visit_children(node * const n) const
-  {
-    for (node * const child : n->get_children()) {
-      if (!child->accept(this)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  bool visit_children(node * const n, const std::vector<node *> & skip_list) const
-  {
-    std::vector<node *> to_visit;
-    to_visit.reserve(n->get_children().size());
-    for (node * const child : n->get_children()) {
-      if (std::find(skip_list.begin(), skip_list.end(), child) == skip_list.end()) {
-        to_visit.emplace_back(child);
-      }
-    }
-    for (node * const child : to_visit) {
-      if (!child->accept(this)) {
-        return false;
-      }
-    }
-    return true;
+    bool ret = visit_children(n);
+    n->mark_visited();
+    return ret;
   }
 
   bool visit_function_body(function_body * const body) const override
@@ -100,7 +153,7 @@ public:
     call_->set_scope(parent->get_scope());
     function_definition * resolved = nullptr;
     auto & scope = call_->get_scope();
-    /* search for the requested variable in this scope, or parent scopes */
+    /* search for the requested function in this scope, or parent scopes */
     for (; scope && !scope_has_function(call_->get_name(), scope, &resolved);
       scope = scope->parent)
     {
@@ -108,17 +161,63 @@ public:
     if (!resolved) {
       error("undefined reference to function '%s'\n", call_, call_->get_name().c_str());
       return false;
-    } else {
-      auto * loc = resolved->get_location();
     }
+    if (!resolved->visiting()) {
+      call_->set_type(new type_info(*resolved->get_type()));
+      return true;
+    }
+    /* confirm this is recursive */
+    if (!resolved->is_anscestor(call_)) {
+      internal_compiler_error("visiting function in a non-recursive context\n");
+      return false;
+    }
+    /**
+     * in order to resolve the type, we crawl back up and find a branch that
+     * resolves to a concrete type.
+     */
+    if_expr * pif = nullptr;
+    for (node * n = call_; nullptr != n && !n->is_function_body(); n = n->get_parent()) {
+      if (n->is_if_expr()) {
+        pif = n->as_if_expr();
+      }
+    }
+    if (nullptr == pif) {
+      error("detected recursive call without any if statements\n", call_);
+      return false;
+    }
+    /* our result depends on the other branch */
+    if (pif->get_affirmative()->is_anscestor(call_)) {
+      /* visit the else branch first, and take that branch's value */
+      if (nullptr != pif->get_else()->get_type()) {
+        call_->set_type(new type_info(*pif->get_else()->get_type()));
+        return true;
+      } else if (pif->get_else()->visiting()) {
+        error("no type resolution for either branch in recursive call\n", pif);
+        return false;
+      } else if (!visit(pif->get_else())) {
+        return false;
+      }
+      call_->set_type(new type_info(*pif->get_else()->get_type()));
+      return true;
+    }
+    /* visit the affirmative branch first, and take that value. */
+    if (nullptr != pif->get_affirmative()->get_type()) {
+      call_->set_type(new type_info(*pif->get_affirmative()->get_type()));
+      return true;
+    } else if (pif->get_affirmative()->visiting()) {
+      error("no type resolution for either branch in recursive call\n", pif);
+      return false;
+    } else if (!visit(pif->get_affirmative())) {
+      return false;
+    }
+    call_->set_type(new type_info(*pif->get_else()->get_type()));
     return true;
   }
 
   bool visit_function_definition(function_definition * const func_) const override
   {
-    /* create a new scope under the parent scope */
     auto * parent = func_->get_parent();
-    func_->set_scope(parent->get_scope());
+    const auto & p_scope = parent->get_scope();
     function_definition * f_conflict;
     variable_definition * v_conflict;
     if (scope_has_function(func_->get_name(), parent->get_scope(), &f_conflict)) {
@@ -138,14 +237,61 @@ public:
         loc.line, loc.column);
       return false;
     }
-    func_->get_scope()->functions.emplace_back(func_);
-    if (nullptr != func_->get_argument_list()) {
-      /* visit argument list first */
-      if (!func_->get_argument_list()->accept(this)) {
-        return false;
+    /* add this function to the parent's scope */
+    parent->get_scope()->functions.emplace_back(func_);
+    /* create new scope under the parent scope */
+    func_->set_scope(std::make_shared<scope>());
+    func_->get_scope()->parent = p_scope;
+    if (!visit_children(func_)) {
+      return false;
+    }
+    /* set type to the last expression's type */
+    expression * ret = func_->get_body()->get_return_expression();
+    if (nullptr == ret) {
+      /* no return expression for this function, throw an error */
+      internal_compiler_error("missing return expression for function\n");
+      return false;
+    }
+    func_->set_type(new type_info(*ret->get_type()));
+    return true;
+  }
+
+  bool visit_if_expr(if_expr * const if_stmt) const override
+  {
+    /* verify we have three children */
+    if (if_stmt->get_children().size() != 3) {
+      internal_compiler_error(
+        "too many children ('%zd') processing if statement", if_stmt->get_children().size());
+    }
+    /* verify each child is an expression */
+    for (node * const child : if_stmt->get_children()) {
+      if (!child->is_expression()) {
+        auto * loc = child->get_location();
+        error("expected expression on line %d column %d\n", if_stmt, loc->line, loc->column);
       }
     }
-    return visit_children(func_, {func_->get_argument_list()});
+    /* visit the children */
+    if (!visit_children(if_stmt)) {
+      return false;
+    }
+    /* check the condition evaluates to a bool */
+    type_info bool_t;
+    bool_t.type = type_id::BOOL;
+    if (!if_stmt->get_condition()->get_type()->converts_to(&bool_t)) {
+      error("expression does not evaluate to a boolean\n", if_stmt->get_condition());
+      return false;
+    }
+    /* check that both results evaluate to the same type */
+    auto * affirmative_t = if_stmt->get_affirmative()->get_type();
+    auto * else_t = if_stmt->get_else()->get_type();
+    if (!else_t->converts_to(affirmative_t)) {
+      error(
+        "type of else expression ('%s') does not convert to expected type '%s'\n",
+        if_stmt->get_else(), type_to_str(else_t).c_str(), type_to_str(affirmative_t).c_str());
+      return false;
+    }
+    if_stmt->set_type(new type_info(*affirmative_t));
+    return true;
   }
 
   bool visit_variable_definition(variable_definition * const var_) const override
@@ -155,6 +301,9 @@ public:
     if (nullptr == parent) {
       internal_compiler_error("parent is null visiting variable definition");
       return false;
+    }
+    for (; nullptr == parent->get_scope(); parent = parent->get_parent()) {
+      /* crawl up the tree to find the first parent with a scope available */
     }
     var.set_scope(parent->get_scope());
     /* check scope for redefinition */
@@ -187,28 +336,131 @@ public:
         loc.line, loc.column, loc.text.c_str());
       return false;
     }
-    return visit_children(&var);
+    if (!visit_children(&var)) {
+      /* visit children */
+      return false;
+    }
+    /* take type from first child */
+    if (!var_->get_children().empty()) {
+      var_->set_type(new type_info(*var_->get_children()[0]->get_type()));
+    }
+    return true;
   }
-
 
   bool visit_list_op(list_op * const op) const override
   {
-    /* child (singular) should be an expression */
+    /* child (singular) should be a list */
     if (op->get_children().size() > 1) {
       internal_compiler_error(
-        "too many children (%zd) for list operation", op,
+        "too many children (%zd) for list operation\n", op,
         op->get_children().size());
       return false;
     } else if (nullptr == dynamic_cast<list *>(op->get_children()[0])) {
-      error("invalid arguments for list operation", op);
+      error("invalid arguments for list operation\n", op);
       return false;
     }
-    return visit_children(op);
+    /* traverse through our children */
+    bool ret = visit_children(op);
+    if (!ret) {
+      /* error already set */
+      return false;
+    }
+    /* get the type of the head */
+    list * const list_ = dynamic_cast<list *>(op->get_children()[0]);
+    type_info * list_t = list_->get_type();
+    if (nullptr == list_t->subtype) {
+      internal_compiler_error("unresolved subtype for list '%s'\n", list_->get_fqn().c_str());
+      return false;
+    }
+    switch(op->get_op())
+    {
+    case op_id::PLUS:
+      if (list_t->subtype->type == type_id::INT ||
+          list_t->subtype->type == type_id::FLOAT ||
+          list_t->subtype->type == type_id::BOOL ||
+          list_t->subtype->type == type_id::STRING ||
+          list_t->subtype->type == type_id::LIST)
+      {
+        op->set_type(new type_info(*list_t->subtype));
+        return true;
+      }
+      error("invalid operands for list operator '%s'\n", op, op_to_str(op->get_op()).c_str());
+      return false;
+    case op_id::MINUS:
+    case op_id::TIMES:
+    case op_id::DIVIDE:
+      if (list_t->subtype->type == type_id::INT ||
+          list_t->subtype->type == type_id::FLOAT)
+      {
+        op->set_type(new type_info(*list_t->subtype));
+        return true;
+      }
+      error(
+        "invalid operands for list operator '%s': expected list, but got '%s'\n",
+        op, op_to_str(op->get_op()).c_str(), type_to_str(list_t).c_str());
+      return false;
+    case op_id::OR:
+    case op_id::AND:
+    case op_id::XOR:
+    case op_id::NOT:
+      if (list_t->subtype->type == type_id::INT ||
+          list_t->subtype->type == type_id::FLOAT ||
+          list_t->subtype->type == type_id::BOOL ||
+          list_t->subtype->type == type_id::STRING ||
+          list_t->subtype->type == type_id::LIST)
+      {
+        op->set_type(type_id::BOOL);
+        return true;
+      }
+      error("invalid operands for list operator '%s'\n", op, op_to_str(op->get_op()).c_str());
+      return false;
+    case op_id::PRINT:
+      /* check the first argument is a string */
+      /* int because printf returns an int */
+      op->set_type(type_id::INT);
+      return true;
+    default:
+      debug("invalid operation\n", op);
+      internal_compiler_error("operator is not a list operator\n");
+      return false;
+    }
+    return ret;
   }
 
   bool visit_list(list * const _list) const override
   {
-    return visit_children(_list);
+    if (!visit_children(_list)) {
+      return false;
+    }
+    type_info * subtype = nullptr;
+    if (nullptr != _list->get_type()->subtype) {
+      /* expliticly labled */
+      subtype = _list->get_type()->subtype;
+    } else {
+      /* derived from first element */
+      _list->get_type()->subtype = new type_info(*_list->get_head()->get_type());
+      subtype = _list->get_type()->subtype;
+    }
+    /* check all list types are compatible */
+    if (!_list->get_head()->get_type()->converts_to(subtype)) {
+      error(
+        "child type '%s' is incompatible with list of type '%s'\n",
+        _list->get_head(),
+        type_to_str(_list->get_head()->get_type()).c_str(),
+        type_to_str(_list->get_type()).c_str());
+      return false;
+    }
+    for (list * iter = _list->get_tail(); iter != nullptr; iter = iter->get_tail()) {
+      if (!iter->get_head()->get_type()->converts_to(subtype)) {
+        error(
+          "child type '%s' is incompatible with list of type '%s'\n",
+          iter->get_head(),
+          type_to_str(iter->get_head()->get_type()).c_str(),
+          type_to_str(_list->get_type()).c_str());
+        return false;
+      }
+    }
+    return true;
   }
 
   bool visit_literal(literal * const) const override
@@ -217,9 +469,50 @@ public:
     return true;
   }
 
-  bool visit_simple_expression(simple_expression * const) const override
+  bool visit_simple_expression(simple_expression * const s) const override
   {
-    return true;
+    return visit_children(s);
+  }
+
+  bool visit_unary_op(unary_op * const op) const override
+  {
+    if (!visit_children(op)) {
+      return false;
+    } else if (op->get_children().size() > 1) {
+      error("too many operands for unary operator\n", op);
+      return false;
+    }
+    type_info & child_t = *op->get_children()[0]->get_type();
+    if (op->get_op() == op_id::NOT) {
+      if (child_t.type == type_id::INVALID ||
+          child_t.type == type_id::VARIABLE)
+      {
+        internal_compiler_error("unresolved type for not operator\n");
+        return false;
+      }
+      op->set_type(type_id::BOOL);
+      return true;
+    } else if (op->get_op() == op_id::CAR) {
+      if (op->get_children()[0]->get_type()->type != type_id::LIST) {
+        error(
+          "attempted car operation on non-list type '%s'\n",
+          op, type_to_str(op->get_children()[0]->get_type()).c_str());
+        return false;
+      }
+      op->set_type(new type_info(*op->get_children()[0]->get_type()->subtype));
+      return true;
+    } else if (op->get_op() == op_id::CDR) {
+      if (op->get_children()[0]->get_type()->type != type_id::LIST) {
+        error(
+          "attempted cdr operation on non-list type '%s'\n",
+          op, type_to_str(op->get_children()[0]->get_type()).c_str());
+        return false;
+      }
+      op->set_type(new type_info(*op->get_children()[0]->get_type()));
+      return true;
+    }
+    internal_compiler_error("invalid unary operator '%s'", op_to_str(op->get_op()).c_str());
+    return false;
   }
 
   bool visit_variable(variable * const var) const override
@@ -282,7 +575,7 @@ public:
   template<class ... Args>
   void internal_compiler_error(const char * fmt, Args && ... args) const
   {
-    std::string err_text = std::string("\e[31minternal compiler error:\e[0m ") + fmt;
+    std::string err_text = std::string("\e[1;31minternal compiler error:\e[0m ") + fmt;
     fprintf(stderr, err_text.c_str(), args ...);
   }
 
@@ -297,12 +590,33 @@ public:
       location_text = std::string("line ") + std::to_string(loc->line) + " column " +
         std::to_string(loc->column);
     }
-    std::string err_text = "\e[31merror (" + location_text + "):\e[0m " + fmt;
+    std::string err_text = "\e[1;31merror (" + location_text + "):\e[0m " + fmt;
     fprintf(stderr, err_text.c_str(), args ...);
   }
 
+#ifdef DEBUG
+  template<class ... Args>
+  void debug(const char * fmt, node * const node, Args && ... args) const
+  {
+    location_info * loc = node->get_location();
+    std::string location_text;
+    if (nullptr == loc) {
+      location_text = "location unavailable";
+    } else {
+      location_text = std::string("line ") + std::to_string(loc->line) + " column " +
+        std::to_string(loc->column);
+    }
+    std::string err_text = "\e[1;35minfo (" + location_text + "):\e[0m " + fmt;
+    fprintf(stderr, err_text.c_str(), args ...);
+  }
+#else
+  template<class ... Args>
+  void debug(const char *, node * const, Args && ...) const{}
+#endif  // DEBUG
+
 private:
   SemanticAnalyzer() = default;
+  ~SemanticAnalyzer() override = default;
   inline static SemanticAnalyzer * impl = nullptr;
 };
 

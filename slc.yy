@@ -21,6 +21,7 @@ extern char * yytext;
 %token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON PRINT
 %token			GREATER LESS GREATER_EQ LESS_EQ EQUAL COMMA
 %code requires {#include <asw/slc_node.hpp>}
+%code requires {#include <asw/type_info.hpp>}
 %code requires {#include <string>}
 %define api.pure full
 %locations
@@ -29,7 +30,7 @@ extern char * yytext;
     int ival;
     double fval;
     char * sval;
-    asw::slc::type_id type_id;
+    asw::slc::type_info * type_id;
     asw::slc::op_id op_id;
     asw::slc::node * node;
     asw::slc::definition * def;
@@ -40,10 +41,11 @@ extern char * yytext;
     asw::slc::simple_expression * sexpr;
     asw::slc::formal * formal;
     asw::slc::function_body * func_body;
+    asw::slc::formals * formals;
 }
 
 %type	<node>  	stmt
-%type	<type_id>	type
+%type	<type_id>	type primitive
 %type	<op_id>	        bin_op list_op unary_op
 %type	<def>		definition
 %type	<var_def>	variable_definition
@@ -52,6 +54,7 @@ extern char * yytext;
 %type	<exprs>		expressions
 %type	<sexpr>		sexpr
 %type	<formal>	formal
+%type	<formals>	formals
 %type	<func_body>	body
 %start program
 %%
@@ -92,21 +95,7 @@ variable_definition:
 		;
 
 function_definition:
-		LPAREN DEFUN IDENTIFIER LBRACKET IDENTIFIER RBRACKET body RPAREN
-		{
-		    /* this declaration has an input list with no bindings */
-		    $$ = new asw::slc::function_definition();
-		    $$->set_location(@3.first_line, @3.first_column, yytext);
-		    $$->set_name($3);
-		    free($3);
-		    $$->set_body($7);
-		    auto * tmp = new asw::slc::variable_definition();
-                    tmp->set_location(@5.first_line, @5.first_column, yytext);
-		    tmp->set_name($5);
-		    free($5);
-		    $$->set_argument_list(tmp);
-		}
-	|       LPAREN DEFUN IDENTIFIER body RPAREN
+	     	LPAREN DEFUN IDENTIFIER body RPAREN
 		{
 		    /* this declaration has no parameters */
 		    $$ = new asw::slc::function_definition();
@@ -117,41 +106,99 @@ function_definition:
 		}
 	|	LPAREN DEFUN IDENTIFIER LPAREN formals RPAREN body RPAREN
 		{
-		    /* this declaration has structural bindings on each specified formal */
+		    $$ = new asw::slc::function_definition();
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
+		    $$->set_name($3);
+		    free($3);
+		    $$->set_formals($5);
+		    delete $5;
+		    $$->set_body($7);
 		}
+	 |	LPAREN LAMBDA formals body RPAREN
+		{
+		    $$ = new asw::slc::function_definition();
+		    $$->set_location(@3.first_line, @3.first_column, yytext);
+		    $$->set_name(
+			std::string("lambda_") + std::to_string(@2.first_line) + "_" +
+			std::to_string(@2.first_column));
+		    $$->set_formals($3);
+		    $$->set_body($4);
+		    delete $3;
+		}
+
         ;
 
 formals:	formals COMMA formal
-	|	formal;
+		{
+		    $1->push_back($3);
+		    $$ = $1;
+		}
+	|	formal
+		{
+		  $$ = new asw::slc::formals();
+		  $$->push_back($1);
+		}
 
 formal:		IDENTIFIER COLON type
 		{
 		  $$ = new asw::slc::formal();
-		  $$->set_location(@1.last_line, @1.last_column, yytext);
+		  $$->set_location(@1.first_line, @1.first_column, yytext);
 		  $$->set_name($1);
 		  $$->set_type($3);
 		  free($1);
 		}
 	;
-type:		INT {$$ = asw::slc::type_id::INT;}
-	|	BOOL {$$ = asw::slc::type_id::BOOL;}
-	|       FLOAT {$$ = asw::slc::type_id::FLOAT;}
-	|	STRING {$$ = asw::slc::type_id::STRING;}
-	|	LIST {$$ = asw::slc::type_id::LIST;}
-	|	LAMBDA {$$ = asw::slc::type_id::LAMBDA;}
-	|	IDENTIFIER {$$ = asw::slc::type_id::VARIABLE;}
+
+type:	        primitive
+		{
+		    $$ = $1;
+		}
+	|	LIST LESS type GREATER
+		{
+		    $$ = new asw::slc::type_info();
+		    $$->type = asw::slc::type_id::LIST;
+		    $$->subtype = $3;
+		}
+		;
+
+primitive:
+		INT
+		{
+		    $$ = new asw::slc::type_info();
+		    $$->type = asw::slc::type_id::INT;
+		}
+	|	BOOL
+		{
+		    $$ = new asw::slc::type_info();
+		    $$->type = asw::slc::type_id::BOOL;
+		}
+	|       FLOAT
+		{
+		    $$ = new asw::slc::type_info();
+		    $$->type = asw::slc::type_id::FLOAT;
+		}
+	|	STRING
+		{
+		    $$ = new asw::slc::type_info();
+		    $$->type = asw::slc::type_id::STRING;
+		}
+	|	LAMBDA
+		{
+		    $$ = new asw::slc::type_info();
+		    $$->type = asw::slc::type_id::LAMBDA;
+		}
 	;
 
 body:	        stmt body
 		{
-		    $2->add_child($1);
+		    $2->prepend_child($1);
 		    $$ = $2;
 		}
 	|	expression  // function body must end in an expression
 		{
 		    $$ = new asw::slc::function_body();
-		    $$->set_name(std::string("expression_") + std::to_string(@1.last_line) + "_" + std::to_string(@1.last_column));
-		    $$->set_location(@1.last_line, @1.last_column, yytext);
+		    $$->set_name(std::string("expression_") + std::to_string(@1.first_line) + "_" + std::to_string(@1.first_column));
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		    $$->set_return_expression($1);
 		}
 	;
@@ -161,6 +208,7 @@ bin_op:       	GREATER {$$ = asw::slc::op_id::GREATER;}
 	|	GREATER_EQ {$$ = asw::slc::op_id::GREATER_EQ;}
 	|	LESS_EQ {$$ = asw::slc::op_id::LESS_EQ;}
 	|	EQUAL {$$ = asw::slc::op_id::EQUAL;}
+	|	CONS {$$ = asw::slc::op_id::CONS;}
 	;
 
 list_op:	TIMES {$$ = asw::slc::op_id::TIMES;}
@@ -170,13 +218,12 @@ list_op:	TIMES {$$ = asw::slc::op_id::TIMES;}
       	|	AND {$$ = asw::slc::op_id::AND;}
 	|	OR {$$ = asw::slc::op_id::OR;}
 	|	XOR {$$ = asw::slc::op_id::XOR;}
-	|	CONS {$$ = asw::slc::op_id::CONS;}
-	|	CDR {$$ = asw::slc::op_id::CDR;}
-	|	CAR {$$ = asw::slc::op_id::CAR;}
         |       PRINT {$$ = asw::slc::op_id::PRINT;}
 	;
 
 unary_op:       NOT {$$ = asw::slc::op_id::NOT;}
+	|	CAR {$$ = asw::slc::op_id::CAR;}
+	|	CDR {$$ = asw::slc::op_id::CDR;}
 	;
 
 expressions:	expressions expression
@@ -185,23 +232,25 @@ expressions:	expressions expression
 		    /* go to the end of the list */
 		    for (; iter->get_tail() != nullptr; iter = iter->get_tail());
 		    iter->set_tail(new asw::slc::list());
-		    iter->get_tail()->set_location(@1.last_line, @1.last_column, yytext);
+		    iter->get_tail()->set_location(@1.first_line, @1.first_column, yytext);
+		    iter->get_tail()->set_type(asw::slc::type_id::LIST);
 		    iter->get_tail()->set_head($2);
 		    $$ = $1;
 		}
 	|       expression
 		{
 		    $$ = new asw::slc::list();
-		    $$->set_location(@1.last_line, @1.last_column, yytext);
+		    $$->set_type(asw::slc::type_id::LIST);
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		    $$->set_head($1);
 		}
 	;
 
-expression:	LPAREN LAMBDA formals body RPAREN
-	|	LPAREN IF expression expression expression RPAREN
+expression:
+ 		LPAREN IF expression expression expression RPAREN
 		{
 		    $$ = new asw::slc::if_expr();
-		    $$->set_location(@2.last_line, @2.last_column, yytext);
+		    $$->set_location(@2.first_line, @2.first_column, yytext);
 		    $$->set_name(
 			std::string("if_stmt_") +
 			std::to_string(@3.first_line) + "_" + std::to_string(@3.first_column));
@@ -212,6 +261,7 @@ expression:	LPAREN LAMBDA formals body RPAREN
 	|	LPAREN bin_op expression expression RPAREN
 		{
 		    $$ = new asw::slc::binary_op();
+		    $$->set_location(@2.first_line, @2.first_column, yytext);
 		    $$->set_name(
 			std::string("bin_op_") +
 			std::to_string(@3.first_line) + "_" + std::to_string(@4.first_column));
@@ -222,12 +272,14 @@ expression:	LPAREN LAMBDA formals body RPAREN
 	|	LPAREN unary_op expression RPAREN
 		{
 		    $$ = new asw::slc::unary_op();
+		    $$->set_location(@2.first_line, @2.first_column, yytext);
 		    $$->add_child($3);
 		    ((asw::slc::unary_op *)$$)->set_op($2);
 		}
 	|       LPAREN list_op expressions RPAREN
 		{
 		    $$ = new asw::slc::list_op();
+		    $$->set_location(@2.first_line, @2.first_column, yytext);
 		    $$->set_name(
 			std::string("list_op_") +
 			std::to_string(@$.first_line) + "_" + std::to_string(@$.first_column));
@@ -237,13 +289,7 @@ expression:	LPAREN LAMBDA formals body RPAREN
 	|	LPAREN IDENTIFIER expressions RPAREN
 		{
 		    $$ = new asw::slc::function_call();
-		    $$->set_name($2);
-		    $$->add_child($3);
-		    free($2);
-		}
-	|	LPAREN IDENTIFIER expression RPAREN
-		{
-		    $$ = new asw::slc::function_call();
+		    $$->set_location(@2.first_line, @2.first_column, yytext);
 		    $$->set_name($2);
 		    $$->add_child($3);
 		    free($2);
@@ -263,41 +309,47 @@ sexpr:	        IDENTIFIER
 		    $$ = new asw::slc::variable();
 		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		    $$->set_name($1);
+		    ((asw::slc::variable *)$$)->set_type(asw::slc::type_id::VARIABLE);
 		    free($1);
 		}
 	|	FLOAT
 		{
 		    auto * lit = new asw::slc::literal();
 		    lit->set_value($1);
-		    lit->set_tid(asw::slc::type_id::FLOAT);
+		    lit->set_type(asw::slc::type_id::FLOAT);
 		    $$ = lit;
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		}
 	|	INT
 		{
 		    auto * lit = new asw::slc::literal();
 		    lit->set_value($1);
-		    lit->set_tid(asw::slc::type_id::INT);
+		    lit->set_type(asw::slc::type_id::INT);
 		    $$ = lit;
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		}
 	|	STR
 		{
 		    auto * lit = new asw::slc::literal();
 		    lit->set_value(std::string($1));
-		    lit->set_tid(asw::slc::type_id::STRING);
+		    lit->set_type(asw::slc::type_id::STRING);
 		    $$ = lit;
+		    /* minus 1 to include the quote character */
+		    $$->set_location(@1.first_line, @1.first_column - 1, yytext);
 		    free($1);
 		}
 	|	NIL
 		{
 		    auto * lit = new asw::slc::literal();
-		    lit->set_tid(asw::slc::type_id::NIL);
+		    lit->set_type(asw::slc::type_id::NIL);
 		    $$ = lit;
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
 		}
 	;
 
 %%
 
 void yyerror(YYLTYPE * locp, asw::slc::node *, char const * msg) {
-  fprintf(stderr, "error: %d:%d: '%s'\n", locp->last_line, locp->last_column, msg);
+  fprintf(stderr, "error: %d:%d: '%s'\n", locp->first_line, locp->first_column, msg);
   exit(1);
 }
