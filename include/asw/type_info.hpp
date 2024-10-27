@@ -78,7 +78,9 @@ struct type_info
   template<class ... Args>
   bool compatible(type_id arg, Args ... args) const
   {
-    return (arg == args) || ...;
+    /* *INDENT-OFF* */
+    return ((arg == args) || ...);
+    /* *INDENT-ON* */
   }
 
   bool converts_to(type_info * other) const
@@ -101,8 +103,7 @@ struct type_info
         return other->type == type_id::LAMBDA;
       case type_id::STRING:
         return compatible(
-          other->type, type_id::STRING, type_id::INT, type_id::FLOAT, type_id::BOOL,
-          type_id::LIST);
+          other->type, type_id::STRING, type_id::BOOL);
       case type_id::VARIABLE:
       case type_id::NIL:
       case type_id::LIST:

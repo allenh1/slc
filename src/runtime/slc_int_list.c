@@ -153,3 +153,8 @@ int64_t slc_int_list_divide(struct slc_int_list * list)
   }
   return div;
 }
+
+int32_t print_int(int64_t i)
+{
+  return printf("%Ld\n", i);
+}

@@ -31,6 +31,7 @@ set(sources
 
 set(runtime_lib_srcs
   src/runtime/slc_int_list.c
+  src/runtime/slc_double_list.c
 )
 
 add_library(slc_runtime

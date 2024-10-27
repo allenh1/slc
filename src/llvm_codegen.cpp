@@ -29,6 +29,7 @@ llvm::Value * codegen::visit(node * const n) const
 {
   n->mark_visiting();
   _insert_slc_int_list_functions();
+  _insert_slc_double_list_functions();
   llvm::Value * ret = n->accept(this);
   n->mark_visited();
   return ret;
@@ -67,6 +68,8 @@ void codegen::_insert_slc_int_list_functions() const
     llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
   llvm::FunctionType * slc_int_list_divide = llvm::FunctionType::get(
     llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
+  llvm::FunctionType * print_int = llvm::FunctionType::get(
+    llvm::Type::getInt32Ty(*context_), {llvm::Type::getInt64Ty(*context_)}, false);
   /* utility */
   llvm::Function::Create(
     slc_int_list_create, llvm::Function::ExternalLinkage,
@@ -107,6 +110,99 @@ void codegen::_insert_slc_int_list_functions() const
   llvm::Function::Create(
     slc_int_list_divide, llvm::Function::ExternalLinkage,
     "slc_int_list_divide", module_.get());
+  llvm::Function::Create(
+    print_int, llvm::Function::ExternalLinkage, "print_int", module_.get());
+}
+
+void codegen::_insert_slc_double_list_functions() const
+{
+  /* slc_int_list */
+  llvm::Type * slc_double_list_type = llvm::PointerType::getInt64Ty(*context_)->getPointerTo();
+  std::vector<llvm::Type *> args_slc_double_list_destroy = {slc_double_list_type};
+  std::vector<llvm::Type *> args_slc_double_list_set_head =
+  {slc_double_list_type, llvm::Type::getDoubleTy(
+      *context_)};
+  std::vector<llvm::Type *> args_slc_double_list_cons =
+  {llvm::Type::getDoubleTy(*context_), slc_double_list_type};
+  llvm::FunctionType * slc_double_list_create = llvm::FunctionType::get(
+    slc_double_list_type, false);
+  llvm::FunctionType * slc_double_list_destroy = llvm::FunctionType::get(
+    llvm::Type::getInt8Ty(*context_), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_fini = llvm::FunctionType::get(
+    llvm::Type::getInt8Ty(*context_), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_init = llvm::FunctionType::get(
+    llvm::Type::getInt8Ty(*context_), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_set_head = llvm::FunctionType::get(
+    llvm::Type::getInt8Ty(*context_), args_slc_double_list_set_head, false);
+  llvm::FunctionType * slc_double_list_car = llvm::FunctionType::get(
+    llvm::Type::getDoubleTy(*context_)->getPointerTo(), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_cdr = llvm::FunctionType::get(
+    slc_double_list_type, args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_cons = llvm::FunctionType::get(
+    slc_double_list_type, args_slc_double_list_cons, false);
+  llvm::FunctionType * slc_double_list_add = llvm::FunctionType::get(
+    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_subtract = llvm::FunctionType::get(
+    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_multiply = llvm::FunctionType::get(
+    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
+  llvm::FunctionType * slc_double_list_divide = llvm::FunctionType::get(
+    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
+  /* utility */
+  llvm::Function::Create(
+    slc_double_list_create, llvm::Function::ExternalLinkage,
+    "slc_double_list_create", module_.get());
+  llvm::Function::Create(
+    slc_double_list_destroy, llvm::Function::ExternalLinkage,
+    "slc_double_list_destroy", module_.get());
+  llvm::Function::Create(
+    slc_double_list_init, llvm::Function::ExternalLinkage, "slc_double_list_init",
+    module_.get());
+  llvm::Function::Create(
+    slc_double_list_fini, llvm::Function::ExternalLinkage, "slc_double_list_fini",
+    module_.get());
+  llvm::Function::Create(
+    slc_double_list_set_head, llvm::Function::ExternalLinkage,
+    "slc_double_list_set_head", module_.get());
+  /* unary ops */
+  llvm::Function::Create(
+    slc_double_list_car, llvm::Function::ExternalLinkage, "slc_double_list_car",
+    module_.get());
+  llvm::Function::Create(
+    slc_double_list_cdr, llvm::Function::ExternalLinkage, "slc_double_list_cdr",
+    module_.get());
+  /* binary ops */
+  llvm::Function::Create(
+    slc_double_list_cons, llvm::Function::ExternalLinkage, "slc_double_list_cons",
+    module_.get());
+  /* list ops */
+  llvm::Function::Create(
+    slc_double_list_add, llvm::Function::ExternalLinkage, "slc_double_list_add",
+    module_.get());
+  llvm::Function::Create(
+    slc_double_list_subtract, llvm::Function::ExternalLinkage,
+    "slc_double_list_subtract", module_.get());
+  llvm::Function::Create(
+    slc_double_list_multiply, llvm::Function::ExternalLinkage,
+    "slc_double_list_multiply", module_.get());
+  llvm::Function::Create(
+    slc_double_list_divide, llvm::Function::ExternalLinkage,
+    "slc_double_list_divide", module_.get());
+  // llvm::Function::Create(
+  //   print_double, llvm::Function::ExternalLinkage, "print_double", module_.get());
+}
+
+llvm::Value * codegen::visit_extern_function(extern_function * const func_) const
+{
+  std::vector<llvm::Type *> formals;
+  formals.reserve(func_->get_formals().size());
+  for (const formal * param : func_->get_formals()) {
+    formals.push_back(_type_id_to_llvm(param->get_type()->type));
+  }
+  llvm::FunctionType * func__ = llvm::FunctionType::get(
+    _type_id_to_llvm(func_->get_type()->type), formals, false);
+  return llvm::Function::Create(
+    func__, llvm::Function::ExternalLinkage, func_->get_name(), module_.get());
 }
 
 llvm::Value * codegen::LogErrorV(const char * s) const
@@ -131,6 +227,22 @@ llvm::Value * codegen::visit_literal(literal * const l) const
       break;
   }
   return LogErrorV("unknown literal");
+}
+
+llvm::Value * codegen::_maybe_convert(node * const n, node * const match) const
+{
+  if (n->get_type()->type != match->get_type()->type) {
+    /* convert first */
+    switch (match->get_type()->type) {
+      case type_id::INT:
+        return _convert_to_int(n->accept(this), n->get_type()->type);
+      case type_id::FLOAT:
+        return _convert_to_float(n->accept(this), n->get_type()->type);
+      case type_id::BOOL:
+        return _convert_to_bool(n->accept(this), n->get_type()->type);
+    }
+  }
+  return n->accept(this);
 }
 
 llvm::Value * codegen::_convert_to_float(llvm::Value * val, const type_id _type) const
@@ -269,9 +381,20 @@ llvm::Value * codegen::visit_function_body(function_body * const body) const
   return body->get_return_expression()->accept(this);
 }
 
-llvm::Value * codegen::visit_function_call(function_call * const) const
+llvm::Value * codegen::visit_function_call(function_call * const call) const
 {
-  return LogErrorV("visit_function_call");
+  llvm::Function * func = module_->getFunction(call->get_name());
+  if (nullptr == func) {
+    return LogErrorV("Unknown function called");
+  }
+  std::vector<llvm::Value *> args;
+  function_definition * resolved = call->get_resolution();
+  args.reserve(call->get_children().size());
+  for (size_t x = 0; x < call->get_children().size(); ++x) {
+    args.emplace_back(_maybe_convert(call->get_children()[x], resolved->get_formals()[x]));
+  }
+  std::string call_name = call->get_name() + "_calltmp";
+  return builder_->CreateCall(func, args, call_name);
 }
 
 llvm::Value * codegen::visit_function_definition(function_definition * const func) const
@@ -284,8 +407,17 @@ llvm::Value * codegen::visit_function_definition(function_definition * const fun
   llvm::FunctionType * func__ = llvm::FunctionType::get(
     _type_id_to_llvm(func->get_type()->type), formals, false);
   llvm::Function * func_ = llvm::Function::Create(
-    func__, llvm::Function::PrivateLinkage, func->get_name(), module_.get());
+    func__, llvm::Function::ExternalLinkage, func->get_name(), module_.get());
   std::string label = (func->get_name() + "_impl");
+  /* record formal names */
+  std::size_t x = 0;
+  for (auto & arg : func_->args()) {
+    arg.setName(func->get_formals()[x++]->get_name());
+  }
+  /* map formal names */
+  for (auto & arg : func_->args()) {
+    named_values_[std::string(arg.getName())] = &arg;
+  }
   llvm::BasicBlock * bb = llvm::BasicBlock::Create(*context_, label, func_);
   builder_->SetInsertPoint(bb);
   llvm::Value * ret = func->get_body()->accept(this);
@@ -336,7 +468,9 @@ llvm::Value * codegen::visit_variable_definition(variable_definition * const v) 
       *module_, type_, false, llvm::GlobalValue::CommonLinkage, 0, v->get_name());
     return gv;
   }
-  return LogErrorV("visit_variable_definition");
+  /* otherwise, store the variable in the scope with the value */
+  named_values_[v->get_name()] = v->get_children()[0]->accept(this);
+  return named_values_[v->get_name()];
 }
 
 llvm::Value * codegen::_visit_int_list(list * const l) const
@@ -362,11 +496,37 @@ llvm::Value * codegen::_visit_int_list(list * const l) const
   return builder_->CreateCall(cons, args, "constmp");
 }
 
+llvm::Value * codegen::_visit_float_list(list * const l) const
+{
+  llvm::Function * create = module_->getFunction("slc_double_list_create");
+  llvm::Function * cons = module_->getFunction("slc_double_list_cons");
+  llvm::Function * set_head = module_->getFunction("slc_double_list_set_head");
+  if (l->get_tail() == nullptr) {
+    llvm::Value * ret = builder_->CreateCall(create);
+    std::vector<llvm::Value *> args = {
+      ret,
+      l->get_head()->accept(this),
+    };
+    /* call set head */
+    builder_->CreateCall(set_head, args, "calltmp");
+    return ret;
+  }
+  std::vector<llvm::Value *> args = {
+    l->get_head()->accept(this),
+    l->get_tail()->accept(this),
+  };
+  /* call cons */
+  return builder_->CreateCall(cons, args, "constmp");
+}
+
 llvm::Value * codegen::visit_list(list * const l) const
 {
   if (l->get_type()->subtype->type == type_id::INT) {
     return _visit_int_list(l);
+  } else if (l->get_type()->subtype->type == type_id::FLOAT) {
+    return _visit_float_list(l);
   }
+
   return LogErrorV("unimplemented list type");
 }
 
@@ -395,10 +555,37 @@ llvm::Value * codegen::_visit_list_op_int(list_op * const op) const
   return builder_->CreateCall(op_impl, args);
 }
 
+llvm::Value * codegen::_visit_list_op_float(list_op * const op) const
+{
+  std::vector<llvm::Value *> args = {
+    op->get_children()[0]->accept(this),
+  };
+  llvm::Function * op_impl;
+  switch (op->get_op()) {
+    case op_id::PLUS:
+      op_impl = module_->getFunction("slc_double_list_add");
+      break;
+    case op_id::MINUS:
+      op_impl = module_->getFunction("slc_double_list_subtract");
+      break;
+    case op_id::TIMES:
+      op_impl = module_->getFunction("slc_double_list_multiply");
+      break;
+    case op_id::DIVIDE:
+      op_impl = module_->getFunction("slc_double_list_divide");
+      break;
+    default:
+      return LogErrorV("not a list op");
+  }
+  return builder_->CreateCall(op_impl, args);
+}
+
 llvm::Value * codegen::visit_list_op(list_op * const op) const
 {
   if (op->get_type()->type == type_id::INT) {
     return _visit_list_op_int(op);
+  } else if (op->get_type()->type == type_id::FLOAT) {
+    return _visit_list_op_float(op);
   }
   return LogErrorV("unimplemented list type");
 }
@@ -422,7 +609,10 @@ llvm::Value * codegen::visit_unary_op(unary_op * const op) const
   if (op->get_children()[0]->get_type()->type == type_id::LIST) {
     if (op->get_children()[0]->get_type()->subtype->type == type_id::INT) {
       return _visit_unary_op_int_list(op);
+    } else if (op->get_children()[0]->get_type()->subtype->type == type_id::FLOAT) {
+      return _visit_unary_op_float_list(op);
     }
+
   }
   return LogErrorV("unimplemented unary op");
 }
@@ -447,8 +637,32 @@ llvm::Value * codegen::_visit_unary_op_int_list(unary_op * const op) const
   return builder_->CreateCall(op_impl, args);
 }
 
-llvm::Value * codegen::visit_variable(variable * const) const
+llvm::Value * codegen::_visit_unary_op_float_list(unary_op * const op) const
 {
-  return LogErrorV("visit_variable");
+  llvm::Function * op_impl;
+  llvm::Value * arg = op->get_children()[0]->accept(this);
+  std::vector<llvm::Value *> args = {
+    arg
+  };
+  switch (op->get_op()) {
+    case op_id::CAR:
+      op_impl = module_->getFunction("slc_double_list_car");
+      break;
+    case op_id::CDR:
+      op_impl = module_->getFunction("slc_double_list_cdr");
+      break;
+    default:
+      return LogErrorV("unimplemented unary op");
+  }
+  return builder_->CreateCall(op_impl, args);
+}
+
+llvm::Value * codegen::visit_variable(variable * const var) const
+{
+  debug("visit_variable\n", var);
+  if (auto it = named_values_.find(var->get_name()); it != named_values_.end()) {
+    return it->second;
+  }
+  return LogErrorV("unknown variable");
 }
 }  // namespace asw::slc::LLVM

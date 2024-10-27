@@ -67,6 +67,7 @@
 "or" {return OR;}
 "and" {return AND;}
 "not" {return NOT;}
+"extern" {return EXTERN;}
 
 ">" {return GREATER;}
 "<" {return LESS;}

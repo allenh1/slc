@@ -114,11 +114,6 @@ public:
     return true;
   }
 
-  bool visit_formal(formal * const) const override
-  {
-    return false;
-  }
-
   bool visit_node(node * const n) const override
   {
     /* root node */
@@ -153,18 +148,48 @@ public:
         "traversed to root node before finding a scope for function '%s'\n", call_->get_fqn());
       return false;
     }
-    call_->set_scope(parent->get_scope());
     function_definition * resolved = nullptr;
-    auto & scope = call_->get_scope();
-    /* search for the requested function in this scope, or parent scopes */
+    scope * scope = parent->get_scope().get();
     for (; scope && !scope_has_function(call_->get_name(), scope, &resolved);
-      scope = scope->parent)
+      scope = scope->parent.get())
     {
+      /* search for the requested function in this scope, or parent scopes */
     }
     if (!resolved) {
       error("undefined reference to function '%s'\n", call_, call_->get_name().c_str());
       return false;
     }
+    call_->resolve(resolved);
+    /* check arguments match */
+    if (call_->get_children().size() < resolved->get_formals().size()) {
+      error(
+        "too few arguments for function '%s': got '%zd' expected '%zd'\n",
+        call_, call_->get_name().c_str(), call_->get_children().size(),
+        resolved->get_formals().size());
+      return false;
+    } else if (call_->get_children().size() > resolved->get_formals().size()) {
+      error(
+        "too many arguments for function '%s': got '%zd' expected '%zd'\n",
+        call_, call_->get_name().c_str(), call_->get_children().size(),
+        resolved->get_formals().size());
+      return false;
+    }
+    /* check types on arguments */
+    for (std::size_t x = 0; x < resolved->get_formals().size(); ++x) {
+      if (!call_->get_children()[x]->accept(this)) {
+        return false;
+      }
+      if (!call_->get_children()[x]->get_type()->converts_to(resolved->get_formals()[x]->get_type()))
+      {
+        error(
+          "invalid argument passed to function '%s': got '%s' expected '%s'\n",
+          call_->get_children()[x], call_->get_name().c_str(),
+          type_to_str(call_->get_children()[x]->get_type()).c_str(),
+          type_to_str(resolved->get_formals()[x]->get_type()).c_str());
+        return false;
+      }
+    }
+    /* check for recursion */
     if (!resolved->visiting()) {
       call_->set_type(new type_info(*resolved->get_type()));
       return true;
@@ -217,13 +242,41 @@ public:
     return true;
   }
 
+  bool visit_extern_function(extern_function * const func_) const override
+  {
+    auto * parent = func_->get_parent();
+    const auto & p_scope = parent->get_scope();
+    function_definition * f_conflict;
+    variable_definition * v_conflict;
+    if (scope_has_function(func_->get_name(), parent->get_scope().get(), &f_conflict)) {
+      location_info & loc = *f_conflict->get_location();
+      error(
+        "conflicting definition for function '%s' (original on line %d column %d): %s\n",
+        func_,
+        func_->get_name().c_str(),
+        loc.line, loc.column, loc.text.c_str());
+      return false;
+    } else if (scope_has_variable(func_->get_name(), parent->get_scope(), &v_conflict)) {
+      location_info & loc = *v_conflict->get_location();
+      error(
+        "conflicting definition for function '%s' (defined as variable on line %d column %d)\n",
+        func_,
+        func_->get_name().c_str(),
+        loc.line, loc.column);
+      return false;
+    }
+    /* add this function to the parent's scope */
+    parent->get_scope()->functions.emplace_back(func_);
+    return true;
+  }
+
   bool visit_function_definition(function_definition * const func_) const override
   {
     auto * parent = func_->get_parent();
     const auto & p_scope = parent->get_scope();
     function_definition * f_conflict;
     variable_definition * v_conflict;
-    if (scope_has_function(func_->get_name(), parent->get_scope(), &f_conflict)) {
+    if (scope_has_function(func_->get_name(), parent->get_scope().get(), &f_conflict)) {
       location_info & loc = *f_conflict->get_location();
       error(
         "conflicting definition for function '%s' (original on line %d column %d): %s\n",
@@ -244,7 +297,9 @@ public:
     parent->get_scope()->functions.emplace_back(func_);
     /* create new scope under the parent scope */
     func_->set_scope(std::make_shared<scope>());
+    debug("create scope for function: %p\n", func_, func_->get_scope().get());
     func_->get_scope()->parent = p_scope;
+    /* visit children */
     if (!visit_children(func_)) {
       return false;
     }
@@ -312,7 +367,7 @@ public:
     /* check scope for redefinition */
     function_definition * f_conflict;
     variable_definition * v_conflict;
-    if (scope_has_function(var.get_name(), parent->get_scope(), &f_conflict)) {
+    if (scope_has_function(var.get_name(), parent->get_scope().get(), &f_conflict)) {
       location_info & loc = *f_conflict->get_location();
       error(
         "conflicting definition for variable '%s' (original on line %d column %d): %s\n",
@@ -344,9 +399,46 @@ public:
       return false;
     }
     /* take type from first child */
-    if (!var_->get_children().empty()) {
+    if (!var_->is_formal() && !var_->get_children().empty()) {
       var_->set_type(new type_info(*var_->get_children()[0]->get_type()));
     }
+    return true;
+  }
+
+  bool visit_formal(formal * const var) const override
+  {
+    auto * parent = var->get_parent();
+    if (nullptr == parent) {
+      internal_compiler_error("parent is null visiting formal");
+      return false;
+    } else if (!parent->is_function_definition()) {
+      internal_compiler_error("parent is not a function definition visiting formal");
+    }
+    /* check scope for redefinition */
+    function_definition * f_conflict;
+    variable_definition * v_conflict;
+    if (scope_has_function(var->get_name(), parent->get_scope().get(), &f_conflict)) {
+      location_info & loc = *f_conflict->get_location();
+      error(
+        "conflicting definition for parameter '%s' (original on line %d column %d): %s\n",
+        var,
+        var->get_name().c_str(),
+        loc.line, loc.column, loc.text.c_str());
+      return false;
+    } else if (scope_has_variable(var->get_name(), parent->get_scope(), &v_conflict)) {
+      location_info & loc = *v_conflict->get_location();
+      error(
+        "conflicting definition for parameter '%s' (original on line %d column %d): %s\n",
+        var,
+        var->get_name().c_str(),
+        loc.line, loc.column);
+      return false;
+    }
+    /* otherwise, append the formal to the function's scope */
+    parent->get_scope()->variables.push_back(var);
+    debug(
+      "adding definition for formal '%s' (type: '%s')\n", var,
+      var->get_name().c_str(), type_to_str(var->get_type()).c_str());
     return true;
   }
 
@@ -520,19 +612,18 @@ public:
   bool visit_variable(variable * const var) const override
   {
     /* set up this variable's scope */
-    node * parent = nullptr;
+    node * parent;
     for (parent = var->get_parent(); parent && (parent->get_scope() == nullptr); ) {
       parent = parent->get_parent();
     }
     if (nullptr == parent) {
       /* made it to root, this should not happen */
       internal_compiler_error(
-        "traversed to root node before finding a scope for variable '%s'\n", var->get_fqn());
+        "traversed to root node before finding a scope to lookup variable '%s'\n", var->get_fqn());
       return false;
     }
-    var->set_scope(parent->get_scope());
     variable_definition * resolved = nullptr;
-    auto & scope = var->get_scope();
+    auto scope = parent->get_scope();
     /* search for the requested variable in this scope, or parent scopes */
     for (; scope && !scope_has_variable(var->get_name(), scope, &resolved); scope = scope->parent) {
     }
@@ -560,7 +651,7 @@ public:
   }
 
   bool scope_has_function(
-    const std::string & name, const std::shared_ptr<scope> & s,
+    const std::string & name, const scope * s,
     function_definition ** p_func = nullptr) const
   {
     for (function_definition * f : s->functions) {

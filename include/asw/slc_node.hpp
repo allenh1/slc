@@ -188,6 +188,20 @@ struct node
     children.emplace_back(child);
   }
 
+  void remove_child(node * child, bool free = true)
+  {
+    size_t x = 0;
+    for (; x < children.size(); ++x) {
+      if (child == children[x]) {
+        if (free) {
+          delete children[x];
+        }
+        children.erase(std::begin(children) + x);
+        return;
+      }
+    }
+  }
+
   void prepend_child(node * child)
   {
     child->parent_ = this;
@@ -223,9 +237,14 @@ struct node
     return ret;
   }
 
-  void set_scope(const std::shared_ptr<scope> & _scope)
+  void set_scope(std::shared_ptr<scope> _scope)
   {
-    scope_ = _scope;
+    scope_ = std::move(_scope);
+#ifdef DEBUG
+    fprintf(
+      stderr, "scope for '%s' set to %p\n",
+      this->get_name().c_str(), scope_.get());
+#endif
   }
 
   std::shared_ptr<scope> & get_scope()
@@ -316,11 +335,13 @@ struct node
 
   utilities(binary_op)
   utilities(expression)
+  utilities(extern_function)
   utilities(list_op)
   utilities(unary_op)
   utilities(if_expr)
   utilities(list)
   utilities(literal)
+  utilities(formal)
   utilities(function_call)
   utilities(function_body)
   utilities(variable_definition)
@@ -680,7 +701,9 @@ struct list : public expression
 
   void set_head(expression * h)
   {
-    this->add_child(h);
+    if (nullptr != h) {
+      this->add_child(h);
+    }
     head = h;
   }
 
@@ -726,6 +749,16 @@ struct function_call : public expression
     return v->visit_function_call(this);
   }
 
+  function_definition * get_resolution() const
+  {
+    return resolved_;
+  }
+
+  void resolve(function_definition * func) const
+  {
+    resolved_ = func;
+  }
+
   std::string print_node(size_t indent_level) const override
   {
     std::string indent = get_indent(indent_level);
@@ -737,6 +770,7 @@ struct function_call : public expression
   }
 
 protected:
+  mutable function_definition * resolved_ = nullptr;
   /* name: function to call */
   /* children: arguments */
 };
@@ -812,6 +846,11 @@ struct formal : public variable_definition
 {
   ~formal() override = default;
 
+  bool accept(const visitor * v) override
+  {
+    return v->visit_formal(this);
+  }
+
   std::string print_node(size_t indent_level) const override
   {
     std::string indent = get_indent(indent_level);
@@ -880,6 +919,30 @@ protected:
   formals parameters;
   /* name */
   /* value (expression) stored as child */
+};
+
+struct extern_function : public function_definition
+{
+  ~extern_function() override = default;
+
+  std::string print_node(size_t indent_level) const override
+  {
+    std::string ret = get_indent(indent_level) + "extern_function(" + this->get_fqn() + "):\n";
+    for (const auto & child : children) {
+      ret += child->print_node(indent_level + 1);
+    }
+    return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_extern_function(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_extern_function(this);
+  }
 };
 
 } // namespace asw::slc

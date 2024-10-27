@@ -57,7 +57,7 @@ struct codegen : public llvm_visitor
   llvm::Value * visit(node * const n) const;
   llvm::Value * visit_binary_op(binary_op * const) const override;
   llvm::Value * visit_literal(literal * const) const override;
-
+  llvm::Value * visit_extern_function(extern_function * const) const override;
   llvm::Value * visit_formal(formal * const) const override;
   llvm::Value * visit_function_body(function_body * const) const override;
   llvm::Value * visit_function_call(function_call * const) const override;
@@ -66,7 +66,6 @@ struct codegen : public llvm_visitor
   llvm::Value * visit_variable_definition(variable_definition * const) const override;
   llvm::Value * visit_list(list * const) const override;
   llvm::Value * visit_list_op(list_op * const) const override;
-
   llvm::Value * visit_node(node * const) const override;
   llvm::Value * visit_simple_expression(simple_expression * const) const override;
   llvm::Value * visit_unary_op(unary_op * const) const override;
@@ -120,16 +119,23 @@ struct codegen : public llvm_visitor
 #endif  // DEBUG
 
 private:
+  llvm::Value * _maybe_convert(node * const n, node * const match) const;
   llvm::Value * _convert_to_bool(llvm::Value * val, const type_id _type) const;
   llvm::Value * _convert_to_int(llvm::Value * val, const type_id _type) const;
   llvm::Value * _convert_to_float(llvm::Value * val, const type_id _type) const;
   llvm::Value * _visit_int_list(list * const l) const;
+  llvm::Value * _visit_float_list(list * const l) const;
   llvm::Value * _visit_list_op_int(list_op * const op) const;
+  llvm::Value * _visit_list_op_float(list_op * const op) const;
   llvm::Value * _visit_unary_op_int_list(unary_op * const op) const;
+  llvm::Value * _visit_unary_op_float_list(unary_op * const op) const;
 
   void _insert_slc_int_list_functions() const;
+  void _insert_slc_double_list_functions() const;
 
   llvm::Type * _type_id_to_llvm(const type_id id) const;
+
+  mutable std::unordered_map<std::string, llvm::Value *> named_values_;
 
   inline static std::unique_ptr<llvm::LLVMContext> context_ = nullptr;
   inline static std::unique_ptr<llvm::Module> module_ = nullptr;

@@ -25,6 +25,7 @@ namespace asw::slc
 
 struct binary_op;
 struct expression;
+struct extern_function;
 struct formal;
 struct function_body;
 struct function_call;
@@ -45,6 +46,7 @@ struct visitor_interface
   virtual ~visitor_interface() = default;
   using return_type = std::conditional_t<std::is_trivial_v<T>, T, const T &>;
   virtual return_type visit_binary_op(binary_op * const) const = 0;
+  virtual return_type visit_extern_function(extern_function * const) const = 0;
   virtual return_type visit_formal(formal * const) const = 0;
   virtual return_type visit_function_body(function_body * const) const = 0;
   virtual return_type visit_function_call(function_call * const) const = 0;

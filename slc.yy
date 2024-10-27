@@ -17,7 +17,7 @@ extern char * yytext;
 %token	<sval>		STR IDENTIFIER
 %token			PLUS MINUS TIMES DIVIDE NIL
 %token  		IF NOT LIST DEFUN IMPORT OR AND XOR
-%token  		CAR CDR CONS LAMBDA BOOL STRING SQUOTE
+%token  		CAR CDR CONS LAMBDA BOOL STRING SQUOTE EXTERN
 %token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON PRINT
 %token			GREATER LESS GREATER_EQ LESS_EQ EQUAL COMMA
 %code requires {#include <asw/slc_node.hpp>}
@@ -42,6 +42,7 @@ extern char * yytext;
     asw::slc::formal * formal;
     asw::slc::function_body * func_body;
     asw::slc::formals * formals;
+    asw::slc::extern_function * exdef;
 }
 
 %type	<node>  	stmt
@@ -56,6 +57,7 @@ extern char * yytext;
 %type	<formal>	formal
 %type	<formals>	formals
 %type	<func_body>	body
+%type	<exdef>		extern_definition
 %start program
 %%
 program:        program stmt
@@ -81,6 +83,18 @@ stmt:	        definition
 
 definition:	variable_definition { $$ = $1; }
 	|	function_definition { $$ = $1; }
+	|	extern_definition { $$ = $1; }
+	;
+
+extern_definition:
+		LPAREN EXTERN type IDENTIFIER LPAREN formals RPAREN RPAREN
+		{
+		    $$ = new asw::slc::extern_function();
+		    $$->set_name($4);
+		    free($4);
+		    $$->set_formals($6);
+		    $$->set_type($3);
+                }
 	;
 
 variable_definition:
@@ -291,8 +305,20 @@ expression:
 		    $$ = new asw::slc::function_call();
 		    $$->set_location(@2.first_line, @2.first_column, yytext);
 		    $$->set_name($2);
-		    $$->add_child($3);
 		    free($2);
+                    /* convert list to parameters */
+                    if (!$3->is_list()) {
+			$$->add_child($3);
+		    } else {
+			auto * slc_list = $3->as_list();
+			for (; nullptr != slc_list; ) {
+			    /* transfer child to this node */
+			    $$->add_child(slc_list->get_head());
+			    slc_list->remove_child(slc_list->get_head(), false);
+			    slc_list = slc_list->get_tail();
+                        }
+		        delete $3;
+                    }
 		}
 	|	SQUOTE LPAREN expressions RPAREN
 		{
