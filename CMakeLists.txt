@@ -56,6 +56,6 @@ separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 add_definitions(${LLVM_DEFINITIONS_LIST})
 target_link_libraries(slc ${llvm_libs})
 set_property(TARGET slc PROPERTY CXX_STANDARD 20)
-
+add_definitions(-DRUNTIME_PREFIX="${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS slc DESTINATION bin)
 install(TARGETS slc_runtime DESTINATION lib)

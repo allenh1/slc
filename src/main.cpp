@@ -16,6 +16,9 @@
 #include <asw/slc_node.hpp>
 #include <asw/semantics.hpp>
 
+#include <sys/wait.h>
+#include <unistd.h>
+
 extern FILE * yyin;
 extern FILE * yyout;
 
@@ -27,10 +30,11 @@ void yyerror(YYLTYPE *, asw::slc::node *, const char * s);
 
 int main(int argc, char ** argv)
 {
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  if (argc != 2) {
+  if (!(argc == 2 || argc == 4 || (argc > 5 && (std::string_view(argv[4]) == "--gcc-opts")))) {
     fprintf(stderr, "Invalid args.\n");
+    fprintf(stderr, "Usage:\n%s [file]:\t\t create llvm intermediate\n", argv[0]);
+    fprintf(stderr, "%s [file] -o [output]:\t\t compile to executable\n", argv[0]);
+    fprintf(stderr, "%s [file] -o [output] --gcc-opts [opts]*:\t compile to executable, pass anything after gcc opts to gcc\n", argv[0]);
     return 1;
   }
   yyin = fopen(argv[1], "r");
@@ -45,6 +49,8 @@ int main(int argc, char ** argv)
   }
   std::string outfile_name{argv[1]};
   outfile_name += ".yml";
+  std::string llvm_out = std::string(argv[1]) + ".ll";
+  std::string llvm_asm_out = std::string(argv[1]) + ".s";
   FILE * out = fopen(outfile_name.c_str(), "w");
   if (nullptr != out) {
     fputs(root.print().c_str(), out);
@@ -55,8 +61,45 @@ int main(int argc, char ** argv)
   if (!a.visit(&root)) {
     return 1;
   }
+  /* convert to IR */
   asw::slc::LLVM::codegen llvm_codegen;
   llvm::Value * ir = llvm_codegen.visit(&root);
-  llvm_codegen.get_mod()->print(llvm::errs(), nullptr);
-  return ir == nullptr;
+  if (!ir) {
+    return 1;
+  }
+  FILE * llvm_out_f = fopen(llvm_out.c_str(), "w");
+  auto file_out = llvm::raw_fd_ostream(fileno(llvm_out_f), true);
+  /* write IR to file */
+  llvm_codegen.get_mod()->print(file_out, nullptr);
+  /* call llc */
+  pid_t child = fork();
+  if (0 == child) {
+    execlp("llc", "llc", llvm_out.c_str(), nullptr);
+  } else {
+    int status = -1;
+    if (child != waitpid(child, &status, 0)) {
+      return 2;
+    }
+  }
+  /* call gcc */
+  pid_t child2 = fork();
+  if (0 == child2) {
+    std::vector<const char *> args;
+    args.emplace_back("gcc");
+    args.emplace_back(llvm_asm_out.c_str());
+    std::string lib_path = std::string("-L") + RUNTIME_PREFIX + "/";
+    args.emplace_back(lib_path.c_str());
+    args.emplace_back("-lslc_runtime");
+    args.emplace_back("-o");
+    args.emplace_back(argv[3]);
+    args.emplace_back(nullptr);
+    /* todo: propagate gcc args */
+    execvp("gcc", (char * const *)args.data());
+  } else {
+    int status = -1;
+    if (child2 != waitpid(child2, &status, 0)) {
+      return 2;
+    }
+  }
+  return 0;
 }
