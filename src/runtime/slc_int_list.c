@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <asw/runtime/slc_int_list.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -154,7 +155,7 @@ int64_t slc_int_list_divide(struct slc_int_list * list)
   return div;
 }
 
-int32_t print_int(int64_t i)
+int64_t print_int(int64_t i)
 {
-  return printf("%Ld\n", i);
+  return printf("%ld\n", i);
 }

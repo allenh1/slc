@@ -35,163 +35,6 @@ llvm::Value * codegen::visit(node * const n) const
   return ret;
 }
 
-void codegen::_insert_slc_int_list_functions() const
-{
-  /* slc_int_list */
-  llvm::Type * slc_int_list_type = llvm::PointerType::getInt64Ty(*context_)->getPointerTo();
-  std::vector<llvm::Type *> args_slc_int_list_destroy = {slc_int_list_type};
-  std::vector<llvm::Type *> args_slc_int_list_set_head = {slc_int_list_type, llvm::Type::getInt64Ty(
-      *context_)};
-  std::vector<llvm::Type *> args_slc_int_list_cons =
-  {llvm::Type::getInt64Ty(*context_), slc_int_list_type};
-  llvm::FunctionType * slc_int_list_create = llvm::FunctionType::get(
-    slc_int_list_type, false);
-  llvm::FunctionType * slc_int_list_destroy = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_fini = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_init = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_set_head = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_int_list_set_head, false);
-  llvm::FunctionType * slc_int_list_car = llvm::FunctionType::get(
-    llvm::Type::getInt64Ty(*context_)->getPointerTo(), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_cdr = llvm::FunctionType::get(
-    slc_int_list_type, args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_cons = llvm::FunctionType::get(
-    slc_int_list_type, args_slc_int_list_cons, false);
-  llvm::FunctionType * slc_int_list_add = llvm::FunctionType::get(
-    llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_subtract = llvm::FunctionType::get(
-    llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_multiply = llvm::FunctionType::get(
-    llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * slc_int_list_divide = llvm::FunctionType::get(
-    llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * print_int = llvm::FunctionType::get(
-    llvm::Type::getInt32Ty(*context_), {llvm::Type::getInt64Ty(*context_)}, false);
-  /* utility */
-  llvm::Function::Create(
-    slc_int_list_create, llvm::Function::ExternalLinkage,
-    "slc_int_list_create", module_.get());
-  llvm::Function::Create(
-    slc_int_list_destroy, llvm::Function::ExternalLinkage,
-    "slc_int_list_destroy", module_.get());
-  llvm::Function::Create(
-    slc_int_list_init, llvm::Function::ExternalLinkage, "slc_int_list_init",
-    module_.get());
-  llvm::Function::Create(
-    slc_int_list_fini, llvm::Function::ExternalLinkage, "slc_int_list_fini",
-    module_.get());
-  llvm::Function::Create(
-    slc_int_list_set_head, llvm::Function::ExternalLinkage,
-    "slc_int_list_set_head", module_.get());
-  /* unary ops */
-  llvm::Function::Create(
-    slc_int_list_car, llvm::Function::ExternalLinkage, "slc_int_list_car",
-    module_.get());
-  llvm::Function::Create(
-    slc_int_list_cdr, llvm::Function::ExternalLinkage, "slc_int_list_cdr",
-    module_.get());
-  /* binary ops */
-  llvm::Function::Create(
-    slc_int_list_cons, llvm::Function::ExternalLinkage, "slc_int_list_cons",
-    module_.get());
-  /* list ops */
-  llvm::Function::Create(
-    slc_int_list_add, llvm::Function::ExternalLinkage, "slc_int_list_add",
-    module_.get());
-  llvm::Function::Create(
-    slc_int_list_subtract, llvm::Function::ExternalLinkage,
-    "slc_int_list_subtract", module_.get());
-  llvm::Function::Create(
-    slc_int_list_multiply, llvm::Function::ExternalLinkage,
-    "slc_int_list_multiply", module_.get());
-  llvm::Function::Create(
-    slc_int_list_divide, llvm::Function::ExternalLinkage,
-    "slc_int_list_divide", module_.get());
-  llvm::Function::Create(
-    print_int, llvm::Function::ExternalLinkage, "print_int", module_.get());
-}
-
-void codegen::_insert_slc_double_list_functions() const
-{
-  /* slc_int_list */
-  llvm::Type * slc_double_list_type = llvm::PointerType::getInt64Ty(*context_)->getPointerTo();
-  std::vector<llvm::Type *> args_slc_double_list_destroy = {slc_double_list_type};
-  std::vector<llvm::Type *> args_slc_double_list_set_head =
-  {slc_double_list_type, llvm::Type::getDoubleTy(
-      *context_)};
-  std::vector<llvm::Type *> args_slc_double_list_cons =
-  {llvm::Type::getDoubleTy(*context_), slc_double_list_type};
-  llvm::FunctionType * slc_double_list_create = llvm::FunctionType::get(
-    slc_double_list_type, false);
-  llvm::FunctionType * slc_double_list_destroy = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_fini = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_init = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_set_head = llvm::FunctionType::get(
-    llvm::Type::getInt8Ty(*context_), args_slc_double_list_set_head, false);
-  llvm::FunctionType * slc_double_list_car = llvm::FunctionType::get(
-    llvm::Type::getDoubleTy(*context_)->getPointerTo(), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_cdr = llvm::FunctionType::get(
-    slc_double_list_type, args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_cons = llvm::FunctionType::get(
-    slc_double_list_type, args_slc_double_list_cons, false);
-  llvm::FunctionType * slc_double_list_add = llvm::FunctionType::get(
-    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_subtract = llvm::FunctionType::get(
-    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_multiply = llvm::FunctionType::get(
-    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
-  llvm::FunctionType * slc_double_list_divide = llvm::FunctionType::get(
-    llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
-  /* utility */
-  llvm::Function::Create(
-    slc_double_list_create, llvm::Function::ExternalLinkage,
-    "slc_double_list_create", module_.get());
-  llvm::Function::Create(
-    slc_double_list_destroy, llvm::Function::ExternalLinkage,
-    "slc_double_list_destroy", module_.get());
-  llvm::Function::Create(
-    slc_double_list_init, llvm::Function::ExternalLinkage, "slc_double_list_init",
-    module_.get());
-  llvm::Function::Create(
-    slc_double_list_fini, llvm::Function::ExternalLinkage, "slc_double_list_fini",
-    module_.get());
-  llvm::Function::Create(
-    slc_double_list_set_head, llvm::Function::ExternalLinkage,
-    "slc_double_list_set_head", module_.get());
-  /* unary ops */
-  llvm::Function::Create(
-    slc_double_list_car, llvm::Function::ExternalLinkage, "slc_double_list_car",
-    module_.get());
-  llvm::Function::Create(
-    slc_double_list_cdr, llvm::Function::ExternalLinkage, "slc_double_list_cdr",
-    module_.get());
-  /* binary ops */
-  llvm::Function::Create(
-    slc_double_list_cons, llvm::Function::ExternalLinkage, "slc_double_list_cons",
-    module_.get());
-  /* list ops */
-  llvm::Function::Create(
-    slc_double_list_add, llvm::Function::ExternalLinkage, "slc_double_list_add",
-    module_.get());
-  llvm::Function::Create(
-    slc_double_list_subtract, llvm::Function::ExternalLinkage,
-    "slc_double_list_subtract", module_.get());
-  llvm::Function::Create(
-    slc_double_list_multiply, llvm::Function::ExternalLinkage,
-    "slc_double_list_multiply", module_.get());
-  llvm::Function::Create(
-    slc_double_list_divide, llvm::Function::ExternalLinkage,
-    "slc_double_list_divide", module_.get());
-  // llvm::Function::Create(
-  //   print_double, llvm::Function::ExternalLinkage, "print_double", module_.get());
-}
-
 llvm::Value * codegen::visit_extern_function(extern_function * const func_) const
 {
   std::vector<llvm::Type *> formals;
@@ -240,6 +83,24 @@ llvm::Value * codegen::_maybe_convert(node * const n, node * const match) const
         return _convert_to_float(n->accept(this), n->get_type()->type);
       case type_id::BOOL:
         return _convert_to_bool(n->accept(this), n->get_type()->type);
+    }
+  }
+  return n->accept(this);
+}
+
+llvm::Value * codegen::_maybe_convert(node * const n, const type_id tid) const
+{
+  if (n->get_type()->type != tid) {
+    /* convert first */
+    switch (tid) {
+      case type_id::INT:
+        return _convert_to_int(n->accept(this), n->get_type()->type);
+      case type_id::FLOAT:
+        return _convert_to_float(n->accept(this), n->get_type()->type);
+      case type_id::BOOL:
+        return _convert_to_bool(n->accept(this), n->get_type()->type);
+      default:
+        return LogErrorV("cannot convert to requested type");
     }
   }
   return n->accept(this);
@@ -425,9 +286,50 @@ llvm::Value * codegen::visit_function_definition(function_definition * const fun
   return func_;
 }
 
-llvm::Value * codegen::visit_if_expr(if_expr * const) const
+llvm::Value * codegen::visit_if_expr(if_expr * const if_stmt) const
 {
-  return LogErrorV("visit_if_expr");
+  llvm::Function * func = builder_->GetInsertBlock()->getParent();
+  llvm::Value * condition =
+    _maybe_convert(if_stmt->get_condition(), type_id::BOOL);
+
+  /* create blocks for different cases */
+  llvm::BasicBlock * bb_then = llvm::BasicBlock::Create(*context_, "then", func);
+  llvm::BasicBlock * bb_else = llvm::BasicBlock::Create(*context_, "else");
+  llvm::BasicBlock * bb_cont = llvm::BasicBlock::Create(*context_, "cont");
+
+  /* branch based on the expression */
+  builder_->CreateCondBr(condition, bb_then, bb_else);
+
+  /* emit value for the affirmitive case */
+  builder_->SetInsertPoint(bb_then);
+  llvm::Value * affirmative = _maybe_convert(if_stmt->get_affirmative(), if_stmt);
+  if (nullptr == affirmative) {
+    return LogErrorV("error generating affirmative branch");
+  }
+  /* branch back to the continuation point */
+  builder_->CreateBr(bb_cont);
+  /* codegen of 'Then' can change the current block, update bb_then for the PHI */
+  bb_then = builder_->GetInsertBlock();
+
+  /* emit else block at the end of the function (so far), and repoint the builder's insert point */
+  func->insert(func->end(), bb_else);
+  builder_->SetInsertPoint(bb_else);
+
+  llvm::Value * else_value = _maybe_convert(if_stmt->get_else(), if_stmt);
+  if (nullptr == else_value) {
+    return LogErrorV("error generating else branch");
+  }
+  builder_->CreateBr(bb_cont);
+  bb_else = builder_->GetInsertBlock();
+
+  /* emit the merge block */
+  func->insert(func->end(), bb_cont);
+  builder_->SetInsertPoint(bb_cont);
+  llvm::PHINode * phi = builder_->CreatePHI(
+    _type_id_to_llvm(if_stmt->get_type()->type), 2, "iftmp");
+  phi->addIncoming(affirmative, bb_then);
+  phi->addIncoming(else_value, bb_else);
+  return phi;
 }
 
 llvm::Type * codegen::_type_id_to_llvm(const type_id id) const

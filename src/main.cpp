@@ -32,9 +32,17 @@ int main(int argc, char ** argv)
 {
   if (!(argc == 2 || argc == 4 || (argc > 5 && (std::string_view(argv[4]) == "--gcc-opts")))) {
     fprintf(stderr, "Invalid args.\n");
-    fprintf(stderr, "Usage:\n%s [file]:\t\t create llvm intermediate\n", argv[0]);
-    fprintf(stderr, "%s [file] -o [output]:\t\t compile to executable\n", argv[0]);
-    fprintf(stderr, "%s [file] -o [output] --gcc-opts [opts]*:\t compile to executable, pass anything after gcc opts to gcc\n", argv[0]);
+    fprintf(
+      stderr,
+      "Usage:\n"
+      "%s [file]:\t\t\t\t\tcreate llvm intermediate\n", argv[0]);
+    fprintf(
+      stderr,
+      "%s [file] -o [output]:\t\t\tcompile to executable\n", argv[0]);
+    fprintf(
+      stderr,
+      "%s [file] -o [output] --gcc-opts [opts]*:\tcompile to executable, pass anything after gcc opts to gcc\n",
+      argv[0]);
     return 1;
   }
   yyin = fopen(argv[1], "r");

@@ -27,6 +27,7 @@ set(sources
   src/main.cpp
   src/slc_node.cpp
   src/llvm_codegen.cpp
+  src/list_functions.cpp
 )
 
 set(runtime_lib_srcs

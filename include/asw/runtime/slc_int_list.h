@@ -40,6 +40,6 @@ int64_t slc_int_list_multiply(struct slc_int_list *);
 int64_t slc_int_list_divide(struct slc_int_list *);
 
 /* print function */
-int32_t print_int(int64_t);
+int64_t print_int(int64_t);
 
 #endif  /* ASW__SLC__RUNTIME__SLC_INT_LIST_H_ */

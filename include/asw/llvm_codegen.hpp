@@ -120,6 +120,8 @@ struct codegen : public llvm_visitor
 
 private:
   llvm::Value * _maybe_convert(node * const n, node * const match) const;
+  llvm::Value * _maybe_convert(node * const n, const type_id tid) const;
+
   llvm::Value * _convert_to_bool(llvm::Value * val, const type_id _type) const;
   llvm::Value * _convert_to_int(llvm::Value * val, const type_id _type) const;
   llvm::Value * _convert_to_float(llvm::Value * val, const type_id _type) const;
