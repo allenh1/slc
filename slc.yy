@@ -93,6 +93,14 @@ extern_definition:
 		    $$->set_name($4);
 		    free($4);
 		    $$->set_formals($6);
+                    delete $6;
+		    $$->set_type($3);
+                }
+        |       LPAREN EXTERN type IDENTIFIER RPAREN
+		{
+		    $$ = new asw::slc::extern_function();
+		    $$->set_name($4);
+		    free($4);
 		    $$->set_type($3);
                 }
 	;
@@ -357,12 +365,15 @@ sexpr:	        IDENTIFIER
 	|	STR
 		{
 		    auto * lit = new asw::slc::literal();
-		    lit->set_value(std::string($1));
+                    std::string as_string = std::string($1);
+                    free($1);
+                    as_string.erase(std::begin(as_string));
+                    as_string.pop_back();
+		    lit->set_value(as_string);
 		    lit->set_type(asw::slc::type_id::STRING);
 		    $$ = lit;
 		    /* minus 1 to include the quote character */
 		    $$->set_location(@1.first_line, @1.first_column - 1, yytext);
-		    free($1);
 		}
 	|	NIL
 		{

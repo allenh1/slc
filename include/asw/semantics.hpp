@@ -93,17 +93,15 @@ public:
             error("invalid operands for binary operator 'cons'\n", op);
             return false;
           }
-          type_info tmp;
-          tmp.type = type_id::LIST;
-          tmp.subtype = new type_info(*lhs->get_type());
-          if (!tmp.converts_to(rhs->get_type())) {
+          type_info tmp = *lhs->get_type();
+          if (!tmp.converts_to(rhs->get_type()->subtype)) {
             error(
-              "cannot covert type '%s' to '%s' in 'cons'\n",
-              lhs, type_to_str(lhs->get_type()).c_str(), type_to_str(rhs->get_type()).c_str()
+              "cannot convert type '%s' to '%s' in 'cons'\n",
+              lhs, type_to_str(lhs->get_type()).c_str(), type_to_str(rhs->get_type()->subtype).c_str()
             );
             return false;
           }
-          op->set_type(new type_info(tmp));
+          op->set_type(new type_info(*rhs->get_type()));
           return true;
         }
       default:
@@ -132,6 +130,7 @@ public:
 
   bool visit_function_body(function_body * const body) const override
   {
+    body->set_scope(body->get_parent()->get_scope());
     return visit_children(body);
   }
 
@@ -557,9 +556,9 @@ public:
     return true;
   }
 
-  bool visit_literal(literal * const) const override
+  bool visit_literal(literal * const l) const override
   {
-    /* nothing to do here */
+    l->set_name(type_to_str(l->get_type()));
     return true;
   }
 
@@ -708,6 +707,7 @@ public:
 #endif  // DEBUG
 
 private:
+  mutable std::size_t str_counter{0};
   SemanticAnalyzer() = default;
   ~SemanticAnalyzer() override = default;
   inline static SemanticAnalyzer * impl = nullptr;

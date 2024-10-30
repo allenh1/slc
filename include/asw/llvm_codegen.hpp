@@ -44,6 +44,14 @@
 #include <llvm/IR/NoFolder.h>
 #pragma GCC diagnostic pop
 
+namespace
+{
+template<class T>
+concept NODE = requires (T * t) {
+  {t->get_location()} -> std::same_as<asw::slc::location_info *>;
+};
+}
+
 namespace asw::slc::LLVM
 {
 
@@ -83,8 +91,8 @@ struct codegen : public llvm_visitor
     fprintf(stderr, err_text.c_str(), args ...);
   }
 
-  template<class ... Args>
-  void error(const char * fmt, node * const node, Args && ... args) const
+  template<NODE _node, class ... Args>
+  void error(const char * fmt, _node * const node, Args && ... args) const
   {
     location_info * loc = node->get_location();
     std::string location_text;
@@ -99,8 +107,8 @@ struct codegen : public llvm_visitor
   }
 
 #ifdef DEBUG
-  template<class ... Args>
-  void debug(const char * fmt, node * const node, Args && ... args) const
+  template<NODE N, class ... Args>
+  void debug(const char * fmt, N * const node, Args && ... args) const
   {
     location_info * loc = node->get_location();
     std::string location_text;
@@ -131,6 +139,8 @@ private:
   llvm::Value * _visit_list_op_float(list_op * const op) const;
   llvm::Value * _visit_unary_op_int_list(unary_op * const op) const;
   llvm::Value * _visit_unary_op_float_list(unary_op * const op) const;
+
+  llvm::Value * _create_cons(expression * const e, expression * const l) const;
 
   void _insert_slc_int_list_functions() const;
   void _insert_slc_double_list_functions() const;

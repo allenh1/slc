@@ -36,8 +36,6 @@ void codegen::_insert_slc_int_list_functions() const
     llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
   llvm::FunctionType * slc_int_list_divide = llvm::FunctionType::get(
     llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
-  llvm::FunctionType * print_int = llvm::FunctionType::get(
-    llvm::Type::getInt32Ty(*context_), {llvm::Type::getInt64Ty(*context_)}, false);
   /* utility */
   llvm::Function::Create(
     slc_int_list_create, llvm::Function::ExternalLinkage,

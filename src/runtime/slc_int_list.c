@@ -159,3 +159,39 @@ int64_t print_int(int64_t i)
 {
   return printf("%ld\n", i);
 }
+
+int64_t slc_puts(const char * s)
+{
+  return puts(s);
+}
+
+void * slc_malloc(int64_t bytes)
+{
+  return malloc(bytes);
+}
+
+int64_t slc_str_to_int(const char * s)
+{
+  return strtol(s, NULL, 10);
+}
+
+int64_t slc_read_int(const char * s)
+{
+  int64_t ret;
+  scanf("%ld", &ret);
+  return ret;
+}
+
+int8_t print_slc_int_list(struct slc_int_list * l)
+{
+  if (NULL == l) {
+    return 0;
+  }
+  printf("(");
+  struct slc_int_list * iter = l;
+  for (; iter != NULL; iter = iter->tail) {
+    printf(" %ld", iter->head);
+  }
+  printf(" )\n");
+  return 1;
+}

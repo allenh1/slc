@@ -98,6 +98,7 @@ int main(int argc, char ** argv)
     std::string lib_path = std::string("-L") + RUNTIME_PREFIX + "/";
     args.emplace_back(lib_path.c_str());
     args.emplace_back("-lslc_runtime");
+    args.emplace_back("-no-pie");
     args.emplace_back("-o");
     args.emplace_back(argv[3]);
     args.emplace_back(nullptr);

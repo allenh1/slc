@@ -64,8 +64,7 @@ llvm::Value * codegen::visit_literal(literal * const l) const
     case type_id::FLOAT:
       return llvm::ConstantFP::get(*context_, llvm::APFloat(l->get_double()));
     case type_id::STRING:
-      /* TODO */
-      return LogErrorV("strings are not implemented");
+      return builder_->CreateGlobalString(l->get_str(), l->get_fqn("."));
     default:
       break;
   }
@@ -83,6 +82,8 @@ llvm::Value * codegen::_maybe_convert(node * const n, node * const match) const
         return _convert_to_float(n->accept(this), n->get_type()->type);
       case type_id::BOOL:
         return _convert_to_bool(n->accept(this), n->get_type()->type);
+    default:
+      return LogErrorV("unknown conversion function");
     }
   }
   return n->accept(this);
@@ -151,9 +152,6 @@ llvm::Value * codegen::_convert_to_int(llvm::Value * val, const type_id _type) c
       return val;
     case type_id::FLOAT:
       return builder_->CreateFPToSI(val, llvm::Type::getInt64Ty(*context_), "inttmp");
-    case type_id::STRING:
-      /* TODO */
-      return LogErrorV("strings are not implemented");
     default:
       return LogErrorV("conversion from invalid type");
   }
@@ -166,6 +164,9 @@ llvm::Value * codegen::visit_binary_op(binary_op * const op) const
   expression * lhs = op->get_children()[0]->as_expression();
   expression * rhs = op->get_children()[1]->as_expression();
   /* get codegen for lhs and rhs */
+  if (op->get_op() == op_id::CONS) {
+    return _create_cons(lhs, rhs);
+  }
   llvm::Value * L = lhs->accept(this);
   llvm::Value * R = rhs->accept(this);
   /* 0: eq, 1: gt, 2: lt, 3: ge, 4: le */
@@ -219,8 +220,6 @@ llvm::Value * codegen::visit_binary_op(binary_op * const op) const
       return builder_->CreateCmp(predicates[3], L, R, "cmptmp");
     case op_id::LESS_EQ:
       return builder_->CreateCmp(predicates[4], L, R, "cmptmp");
-    case op_id::CONS:
-      return LogErrorV("unimplemented binary operation");
     default:
       return LogErrorV("invalid binary operation");
   }
@@ -269,6 +268,11 @@ llvm::Value * codegen::visit_function_definition(function_definition * const fun
     _type_id_to_llvm(func->get_type()->type), formals, false);
   llvm::Function * func_ = llvm::Function::Create(
     func__, llvm::Function::ExternalLinkage, func->get_name(), module_.get());
+  func_->addFnAttrs(
+    llvm::AttrBuilder(*context_)
+    .addAttribute(llvm::Attribute::AttrKind::NoInline)
+    .addAttribute(llvm::Attribute::AttrKind::OptimizeNone)
+  );
   std::string label = (func->get_name() + "_impl");
   /* record formal names */
   std::size_t x = 0;
@@ -341,6 +345,10 @@ llvm::Type * codegen::_type_id_to_llvm(const type_id id) const
       return llvm::Type::getDoubleTy(*context_);
     case type_id::BOOL:
       return llvm::Type::getInt1Ty(*context_);
+    case type_id::STRING:
+      return llvm::Type::getInt8Ty(*context_)->getPointerTo();
+    case type_id::LIST:
+      return llvm::Type::getInt8Ty(*context_)->getPointerTo();
     default:
       return nullptr;
   }
@@ -355,7 +363,6 @@ llvm::Value * codegen::visit_variable_definition(variable_definition * const v) 
     if (v->get_type()->type == type_id::LIST) {
       return LogErrorV("global lists unimplemented");
     }
-    llvm::FunctionType * init_impl;
     switch (v->get_type()->type) {
       case type_id::INT:
         type_ = llvm::Type::getInt64Ty(*context_);
@@ -373,6 +380,26 @@ llvm::Value * codegen::visit_variable_definition(variable_definition * const v) 
   /* otherwise, store the variable in the scope with the value */
   named_values_[v->get_name()] = v->get_children()[0]->accept(this);
   return named_values_[v->get_name()];
+}
+
+llvm::Value * codegen::_create_cons(expression * const e, expression * const l) const
+{
+  std::vector<llvm::Value *> args = {
+    _maybe_convert(e, l->get_type()->subtype->type),
+    l->accept(this)
+  };
+  llvm::Function * cons;
+  switch (l->get_type()->subtype->type) {
+  case type_id::INT:
+    cons = module_->getFunction("slc_int_list_cons");
+    break;
+  case type_id::FLOAT:
+    cons = module_->getFunction("slc_double_list_cons");
+    break;
+  default:
+    return LogErrorV("Unimplemented list type");
+  }
+  return builder_->CreateCall(cons, args, "binop_cons");
 }
 
 llvm::Value * codegen::_visit_int_list(list * const l) const
@@ -529,14 +556,14 @@ llvm::Value * codegen::_visit_unary_op_int_list(unary_op * const op) const
   switch (op->get_op()) {
     case op_id::CAR:
       op_impl = module_->getFunction("slc_int_list_car");
-      break;
+      return builder_->CreateLoad(llvm::Type::getInt64Ty(*context_), builder_->CreateCall(op_impl, args));
     case op_id::CDR:
       op_impl = module_->getFunction("slc_int_list_cdr");
-      break;
+      return builder_->CreateCall(op_impl, args);
     default:
-      return LogErrorV("unimplemented unary op");
+      break;
   }
-  return builder_->CreateCall(op_impl, args);
+  return LogErrorV("unimplemented unary op");
 }
 
 llvm::Value * codegen::_visit_unary_op_float_list(unary_op * const op) const

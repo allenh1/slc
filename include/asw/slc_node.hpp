@@ -145,15 +145,15 @@ struct node
     return ret;
   }
 
-  std::string get_fqn() const
+  std::string get_fqn(const std::string & delim = "::") const
   {
     if (fqn.empty()) {
       auto vec{get_path_from_root()};
       for (const auto & n : vec) {
-        fqn += std::string("::") + n;
+        fqn += delim + n;
       }
     }
-    return fqn + std::string("::") + this->get_name();
+    return fqn + delim + this->get_name();
   }
 
   const std::string & get_name() const
