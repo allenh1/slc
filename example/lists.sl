@@ -1,4 +1,5 @@
-(defun reverse [fn]
+
+(defun reverse (fn: list)
   (+ 1 2)
   (let head (car fn))
   (if (= nil tail)

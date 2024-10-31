@@ -1,8 +1,10 @@
 %option noyywrap
+%option bison-bridge
+%option bison-locations
+%option yylineno
+%option nounput
 %{
 #include <cstdio>
-
-#define YY_DECL int yylex()
 
 /* remove register keyword */
 #define register
@@ -10,13 +12,30 @@
 #include <cstring>
 #include <string>
 #include "slc_bison.hh"
-
+#define YY_DECL int yylex(YYSTYPE * yylval_param, YYLTYPE * yylloc_param)
+#define YY_USER_ACTION \
+    yylloc->first_line = yylloc->last_line; \
+    yylloc->first_column = yylloc->last_column; \
+    for(int i = 0; yytext[i] != '\0'; i++) { \
+        if(yytext[i] == '\n') { \
+            yylloc->last_line++; \
+            yylloc->last_column = 0; \
+        } \
+        else { \
+            yylloc->last_column++; \
+        } \
+    }
 %}
+
+%x LINE_COMMENT
 
 %%
 
-[ \t\n\v];      // ignore all whitespace
-";;"[^\n];      // ignore comments
+[[:space:]] {/* Ignore space */}
+
+<INITIAL>";;" {BEGIN(LINE_COMMENT);}
+<LINE_COMMENT>[^\n]+ {}
+<LINE_COMMENT>[\n] {BEGIN(INITIAL);}
 
 "lambda" {return LAMBDA;}
 "let" {return LET;}
@@ -26,6 +45,8 @@
 "float" {return FLOAT;}
 "string" {return STRING;}
 "list" {return LIST;}
+"print" {return PRINT;}
+"nil" {return NIL;}
 "(" {return LPAREN;}
 ")" {return RPAREN;}
 "[" {return LBRACKET;}
@@ -46,6 +67,7 @@
 "or" {return OR;}
 "and" {return AND;}
 "not" {return NOT;}
+"extern" {return EXTERN;}
 
 ">" {return GREATER;}
 "<" {return LESS;}
@@ -53,9 +75,9 @@
 "<=" {return LESS_EQ;}
 "=" {return EQUAL;}
 
-[a-zA-Z_]+ {yylval.sval = strdup(yytext); return IDENTIFIER;}
-[0-9]+\.[0-9]+ 	{yylval.fval = atof(yytext); return FLOAT;}
-[0-9]+		{yylval.ival = atoi(yytext); return INT;}
-\"(\\.|[^"\\])*\" {yylval.sval = strdup(yytext); return STR;}
+[a-zA-Z_]+ {yylval->sval = strdup(yytext); return IDENTIFIER;}
+[0-9]+\.[0-9]+ 	{yylval->fval = atof(yytext); return FLOAT;}
+[0-9]+		{yylval->ival = atoi(yytext); return INT;}
+\"(\\.|[^"\\])*\" {yylval->sval = strdup(yytext); return STR;}
 
 %%

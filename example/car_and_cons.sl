@@ -1,0 +1,20 @@
+(extern bool print_slc_int_list (d: list<int>))
+(extern int slc_puts(s: string))
+(extern int print_int(i: int))
+
+(defun extract_two (l: list<int>)
+ '((car l) (car (cdr l))))
+
+(defun main
+  (slc_puts "Initial list:")
+  (let x '( 1 2 3 4 5))
+  (print_slc_int_list x)
+  (slc_puts "car list:")
+  (print_int (car x))
+  (slc_puts "cdr list:")
+  (print_slc_int_list (cdr x))
+  (slc_puts "cons (car list) (cdr list)")
+  (print_slc_int_list (cons (car x) (cdr x)))
+  (slc_puts "extract_two:")
+  (print_slc_int_list (extract_two x))
+)
