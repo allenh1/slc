@@ -328,6 +328,13 @@ expression:
 		        delete $3;
                     }
 		}
+        |       LPAREN IDENTIFIER RPAREN
+                {
+		    $$ = new asw::slc::function_call();
+		    $$->set_location(@2.first_line, @2.first_column, yytext);
+		    $$->set_name($2);
+		    free($2);
+                }
 	|	SQUOTE LPAREN expressions RPAREN
 		{
 		    $$ = $3;

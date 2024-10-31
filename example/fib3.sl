@@ -1,7 +1,7 @@
 (extern int slc_puts(s: string))
-(extern int slc_read_int(s: string))
-(extern bool print_slc_int_list (d: list<int>))
-(extern int slc_int_list_add(d: list<int>))
+(extern int slc_read_int)
+(extern int slc_int_list_add (d: list<int>))
+(extern bool print_slc_int_list(d: list<int>))
 
 (defun extract_two (l: list<int>)
  '((car l) (car (cdr l))))
@@ -14,4 +14,4 @@
 
 (defun main
   (slc_puts "How many fn do you want?")
-  (print_slc_int_list (fib (slc_read_int ""))))
+  (print_slc_int_list (fib (slc_read_int))))
