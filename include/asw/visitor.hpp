@@ -31,6 +31,7 @@ struct function_body;
 struct function_call;
 struct function_definition;
 struct if_expr;
+struct lambda;
 struct list;
 struct list_op;
 struct literal;
@@ -53,6 +54,7 @@ struct visitor_interface
   virtual return_type visit_function_definition(function_definition * const) const = 0;
   virtual return_type visit_if_expr(if_expr * const) const = 0;
   virtual return_type visit_variable_definition(variable_definition * const) const = 0;
+  virtual return_type visit_lambda(lambda * const) const = 0;
   virtual return_type visit_list(list * const) const = 0;
   virtual return_type visit_list_op(list_op * const) const = 0;
   virtual return_type visit_literal(literal * const) const = 0;

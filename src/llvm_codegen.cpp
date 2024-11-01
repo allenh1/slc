@@ -65,6 +65,8 @@ llvm::Value * codegen::visit_literal(literal * const l) const
       return llvm::ConstantFP::get(*context_, llvm::APFloat(l->get_double()));
     case type_id::STRING:
       return builder_->CreateGlobalString(l->get_str(), l->get_fqn("."));
+    case type_id::NIL:
+      return llvm::ConstantPointerNull::get(llvm::PointerType::get(*context_, 0));
     default:
       break;
   }
@@ -82,8 +84,8 @@ llvm::Value * codegen::_maybe_convert(node * const n, node * const match) const
         return _convert_to_float(n->accept(this), n->get_type()->type);
       case type_id::BOOL:
         return _convert_to_bool(n->accept(this), n->get_type()->type);
-    default:
-      return LogErrorV("unknown conversion function");
+      default:
+        return LogErrorV("unknown conversion function");
     }
   }
   return n->accept(this);
@@ -135,8 +137,8 @@ llvm::Value * codegen::_convert_to_bool(llvm::Value * val, const type_id _type) 
     case type_id::FLOAT:
       return builder_->CreateFPToUI(val, llvm::Type::getInt1Ty(*context_), "booltmp");
     case type_id::STRING:
-      /* TODO */
-      return LogErrorV("strings are not implemented");
+    case type_id::LIST:
+      return val;
     default:
       return LogErrorV("conversion from invalid type");
   }
@@ -203,6 +205,16 @@ llvm::Value * codegen::visit_binary_op(binary_op * const op) const
         llvm::CmpInst::Predicate::FCMP_ULE,
       };
       break;
+    case type_id::NIL:
+      R = _convert_to_bool(R, rhs->get_type()->type);
+      predicates = {
+        llvm::CmpInst::Predicate::ICMP_EQ,
+        llvm::CmpInst::Predicate::ICMP_UGT,
+        llvm::CmpInst::Predicate::ICMP_ULT,
+        llvm::CmpInst::Predicate::ICMP_UGE,
+        llvm::CmpInst::Predicate::ICMP_ULE,
+      };
+      break;
     default:
       break;
   }
@@ -243,17 +255,28 @@ llvm::Value * codegen::visit_function_body(function_body * const body) const
 
 llvm::Value * codegen::visit_function_call(function_call * const call) const
 {
-  llvm::Function * func = module_->getFunction(call->get_name());
+  llvm::Function * func = nullptr;
+  lambda * as_lambda = dynamic_cast<lambda *>(call->get_resolution());
+  if (nullptr != as_lambda) {
+    /* this is a safe cast */
+    debug(
+      "function call resolved to lambda '%s'\n",
+      call, as_lambda->get_name().c_str());
+    func = module_->getFunction(as_lambda->get_name());
+  } else {
+    func = module_->getFunction(call->get_name());
+  }
   if (nullptr == func) {
+    /* look for a lambda */
     return LogErrorV("Unknown function called");
   }
   std::vector<llvm::Value *> args;
-  function_definition * resolved = call->get_resolution();
+  callable * resolved = call->get_resolution();
   args.reserve(call->get_children().size());
   for (size_t x = 0; x < call->get_children().size(); ++x) {
     args.emplace_back(_maybe_convert(call->get_children()[x], resolved->get_formals()[x]));
   }
-  std::string call_name = call->get_name() + "_calltmp";
+  std::string call_name = "calltmp";
   return builder_->CreateCall(func, args, call_name);
 }
 
@@ -336,6 +359,41 @@ llvm::Value * codegen::visit_if_expr(if_expr * const if_stmt) const
   return phi;
 }
 
+llvm::Value * codegen::visit_lambda(lambda * const lambda) const
+{
+  std::vector<llvm::Type *> formals;
+  formals.reserve(lambda->get_formals().size());
+  for (const formal * param : lambda->get_formals()) {
+    formals.push_back(_type_id_to_llvm(param->get_type()->type));
+  }
+  llvm::FunctionType * func__ = llvm::FunctionType::get(
+    _type_id_to_llvm(lambda->get_type()->type), formals, false);
+  llvm::Function * func_ = llvm::Function::Create(
+    func__, llvm::Function::ExternalLinkage, lambda->get_name(), module_.get());
+  func_->addFnAttrs(
+    llvm::AttrBuilder(*context_)
+    .addAttribute(llvm::Attribute::AttrKind::NoInline)
+    .addAttribute(llvm::Attribute::AttrKind::OptimizeNone)
+  );
+  std::string label = (lambda->get_name() + "_impl");
+  /* record formal names */
+  std::size_t x = 0;
+  for (auto & arg : func_->args()) {
+    arg.setName(lambda->get_formals()[x++]->get_name());
+  }
+  /* map formal names */
+  for (auto & arg : func_->args()) {
+    named_values_[std::string(arg.getName())] = &arg;
+  }
+  llvm::BasicBlock * bb_old = builder_->GetInsertBlock();
+  llvm::BasicBlock * bb = llvm::BasicBlock::Create(*context_, label, func_);
+  builder_->SetInsertPoint(bb);
+  llvm::Value * ret = lambda->get_body()->accept(this);
+  builder_->CreateRet(ret);
+  builder_->SetInsertPoint(bb_old);  /* continue with parent function */
+  return func_;
+}
+
 llvm::Type * codegen::_type_id_to_llvm(const type_id id) const
 {
   switch (id) {
@@ -390,14 +448,14 @@ llvm::Value * codegen::_create_cons(expression * const e, expression * const l) 
   };
   llvm::Function * cons;
   switch (l->get_type()->subtype->type) {
-  case type_id::INT:
-    cons = module_->getFunction("slc_int_list_cons");
-    break;
-  case type_id::FLOAT:
-    cons = module_->getFunction("slc_double_list_cons");
-    break;
-  default:
-    return LogErrorV("Unimplemented list type");
+    case type_id::INT:
+      cons = module_->getFunction("slc_int_list_cons");
+      break;
+    case type_id::FLOAT:
+      cons = module_->getFunction("slc_double_list_cons");
+      break;
+    default:
+      return LogErrorV("Unimplemented list type");
   }
   return builder_->CreateCall(cons, args, "binop_cons");
 }
@@ -556,7 +614,9 @@ llvm::Value * codegen::_visit_unary_op_int_list(unary_op * const op) const
   switch (op->get_op()) {
     case op_id::CAR:
       op_impl = module_->getFunction("slc_int_list_car");
-      return builder_->CreateLoad(llvm::Type::getInt64Ty(*context_), builder_->CreateCall(op_impl, args));
+      return builder_->CreateLoad(
+        llvm::Type::getInt64Ty(*context_),
+        builder_->CreateCall(op_impl, args));
     case op_id::CDR:
       op_impl = module_->getFunction("slc_int_list_cdr");
       return builder_->CreateCall(op_impl, args);

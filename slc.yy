@@ -43,6 +43,7 @@ extern char * yytext;
     asw::slc::function_body * func_body;
     asw::slc::formals * formals;
     asw::slc::extern_function * exdef;
+    asw::slc::lambda * lamda;
 }
 
 %type	<node>  	stmt
@@ -51,7 +52,7 @@ extern char * yytext;
 %type	<def>		definition
 %type	<var_def>	variable_definition
 %type	<func_def>	function_definition
-%type	<expr>		expression
+%type	<expr>		expression lambda
 %type	<exprs>		expressions
 %type	<sexpr>		sexpr
 %type	<formal>	formal
@@ -135,19 +136,19 @@ function_definition:
 		    $$->set_formals($5);
 		    delete $5;
 		    $$->set_body($7);
-		}
-	 |	LPAREN LAMBDA formals body RPAREN
+		};
+
+lambda:         LPAREN LAMBDA LPAREN formals RPAREN body RPAREN
 		{
-		    $$ = new asw::slc::function_definition();
-		    $$->set_location(@3.first_line, @3.first_column, yytext);
-		    $$->set_name(
+		    auto * l = new asw::slc::lambda();
+		    l->set_location(@2.first_line, @2.first_column, yytext);
+		    l->set_name(
 			std::string("lambda_") + std::to_string(@2.first_line) + "_" +
 			std::to_string(@2.first_column));
-		    $$->set_formals($3);
-		    $$->set_body($4);
-		    delete $3;
+		    l->set_formals($4); delete $4;
+		    l->set_body($6);
+                    $$ = l;
 		}
-
         ;
 
 formals:	formals COMMA formal
@@ -343,6 +344,7 @@ expression:
 		{
 		    $$ = $1;
 		}
+        |       lambda
 	;
 
 sexpr:	        IDENTIFIER

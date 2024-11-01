@@ -26,6 +26,7 @@ add_flex_bison_dependency(Scanner Parser)
 set(sources
   src/main.cpp
   src/slc_node.cpp
+  src/semantics.cpp
   src/llvm_codegen.cpp
   src/list_functions.cpp
 )

@@ -339,6 +339,7 @@ struct node
   utilities(list_op)
   utilities(unary_op)
   utilities(if_expr)
+  utilities(lambda)
   utilities(list)
   utilities(literal)
   utilities(formal)
@@ -735,6 +736,16 @@ protected:
   list * tail = nullptr;
 };
 
+using formals = std::vector<formal *>;
+
+struct callable
+{
+  virtual void set_body(function_body * body) = 0;
+  virtual function_body * get_body() const = 0;
+  virtual void set_formals(formals * list) = 0;
+  virtual formals get_formals() const = 0;
+};
+
 struct function_call : public expression
 {
   ~function_call() override = default;
@@ -749,12 +760,12 @@ struct function_call : public expression
     return v->visit_function_call(this);
   }
 
-  function_definition * get_resolution() const
+  callable * get_resolution() const
   {
     return resolved_;
   }
 
-  void resolve(function_definition * func) const
+  void resolve(callable * func) const
   {
     resolved_ = func;
   }
@@ -770,7 +781,7 @@ struct function_call : public expression
   }
 
 protected:
-  mutable function_definition * resolved_ = nullptr;
+  mutable callable * resolved_ = nullptr;
   /* name: function to call */
   /* children: arguments */
 };
@@ -865,9 +876,7 @@ protected:
   /* name */
 };
 
-using formals = std::vector<formal *>;
-
-struct function_definition : public definition
+struct function_definition : public definition, public callable
 {
   ~function_definition() override = default;
 
@@ -890,18 +899,18 @@ struct function_definition : public definition
     return v->visit_function_definition(this);
   }
 
-  void set_body(function_body * body)
+  void set_body(function_body * body) final
   {
     this->add_child(body);
     this->impl = body;
   }
 
-  function_body * get_body() const
+  function_body * get_body() const final
   {
     return impl;
   }
 
-  void set_formals(formals * list)
+  void set_formals(formals * list) final
   {
     for (formal * f : *list) {
       this->add_child(f);
@@ -909,7 +918,61 @@ struct function_definition : public definition
     this->parameters = *list;
   }
 
-  formals get_formals() const
+  formals get_formals() const final
+  {
+    return parameters;
+  }
+
+protected:
+  function_body * impl = nullptr;
+  formals parameters;
+  /* name */
+  /* value (expression) stored as child */
+};
+
+struct lambda : public expression, public callable
+{
+  ~lambda() override = default;
+
+  std::string print_node(size_t indent_level) const override
+  {
+    std::string ret = get_indent(indent_level) + "lambda(" + this->get_fqn() + "):\n";
+    for (const auto & child : children) {
+      ret += child->print_node(indent_level + 1);
+    }
+    return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_lambda(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_lambda(this);
+  }
+
+  void set_body(function_body * body) final
+  {
+    this->add_child(body);
+    this->impl = body;
+  }
+
+  function_body * get_body() const final
+  {
+    return impl;
+  }
+
+  void set_formals(formals * list) final
+  {
+    for (formal * f : *list) {
+      this->add_child(f);
+    }
+    this->parameters = *list;
+  }
+
+  formals get_formals() const final
   {
     return parameters;
   }

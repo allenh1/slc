@@ -47,8 +47,8 @@
 namespace
 {
 template<class T>
-concept NODE = requires (T * t) {
-  {t->get_location()} -> std::same_as<asw::slc::location_info *>;
+concept NODE = requires(T * t) {
+  {t->get_location()}->std::same_as<asw::slc::location_info *>;
 };
 }
 
@@ -71,13 +71,14 @@ struct codegen : public llvm_visitor
   llvm::Value * visit_function_call(function_call * const) const override;
   llvm::Value * visit_function_definition(function_definition * const) const override;
   llvm::Value * visit_if_expr(if_expr * const) const override;
-  llvm::Value * visit_variable_definition(variable_definition * const) const override;
+  llvm::Value * visit_lambda(lambda * const) const override;
   llvm::Value * visit_list(list * const) const override;
   llvm::Value * visit_list_op(list_op * const) const override;
   llvm::Value * visit_node(node * const) const override;
   llvm::Value * visit_simple_expression(simple_expression * const) const override;
   llvm::Value * visit_unary_op(unary_op * const) const override;
   llvm::Value * visit_variable(variable * const) const override;
+  llvm::Value * visit_variable_definition(variable_definition * const) const override;
 
   std::unique_ptr<llvm::Module> & get_mod() const
   {
