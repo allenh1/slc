@@ -15,7 +15,7 @@ extern char * yytext;
 %token	<ival>		INT
 %token	<fval> 		FLOAT
 %token	<sval>		STR IDENTIFIER
-%token			PLUS MINUS TIMES DIVIDE NIL
+%token			PLUS MINUS TIMES DIVIDE NIL SET FOR IN
 %token  		IF NOT LIST DEFUN IMPORT OR AND XOR
 %token  		CAR CDR CONS LAMBDA BOOL STRING SQUOTE EXTERN
 %token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON PRINT
@@ -79,6 +79,10 @@ stmt:	        definition
 		{
 		    $$ = $1;
 		}
+        |       loop
+                {
+                    $$ = $1;
+                }
 		;
 
 
@@ -86,6 +90,11 @@ definition:	variable_definition { $$ = $1; }
 	|	function_definition { $$ = $1; }
 	|	extern_definition { $$ = $1; }
 	;
+
+loop:           LPAREN FOR IDENTIFIER IN expressions body RPAREN
+                {
+                }
+        ;
 
 extern_definition:
 		LPAREN EXTERN type IDENTIFIER LPAREN formals RPAREN RPAREN

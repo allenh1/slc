@@ -240,11 +240,6 @@ struct node
   void set_scope(std::shared_ptr<scope> _scope)
   {
     scope_ = std::move(_scope);
-#ifdef DEBUG
-    fprintf(
-      stderr, "scope for '%s' set to %p\n",
-      this->get_name().c_str(), scope_.get());
-#endif
   }
 
   std::shared_ptr<scope> & get_scope()

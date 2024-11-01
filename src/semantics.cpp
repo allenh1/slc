@@ -226,7 +226,7 @@ bool SemanticAnalyzer::visit_function_call(function_call * const call_) const
   /* our result depends on the other branch */
   if (pif->get_affirmative()->is_anscestor(call_)) {
     /* visit the else branch first, and take that branch's value */
-    if (nullptr != pif->get_else()->get_type()) {
+    if (pif->get_else()->visited()) {
       call_->set_type(new type_info(*pif->get_else()->get_type()));
       return true;
     } else if (pif->get_else()->visiting()) {
@@ -248,7 +248,7 @@ bool SemanticAnalyzer::visit_function_call(function_call * const call_) const
   } else if (!visit(pif->get_affirmative())) {
     return false;
   }
-  call_->set_type(new type_info(*pif->get_else()->get_type()));
+  call_->set_type(new type_info(*pif->get_affirmative()->get_type()));
   return true;
 }
 
@@ -306,7 +306,6 @@ bool SemanticAnalyzer::visit_function_definition(function_definition * const fun
   parent->get_scope()->functions.emplace_back(func_);
   /* create new scope under the parent scope */
   func_->set_scope(std::make_shared<scope>());
-  debug("create scope for function: %p\n", func_, func_->get_scope().get());
   func_->get_scope()->parent = p_scope;
   /* visit children */
   if (!visit_children(func_)) {
@@ -445,9 +444,6 @@ bool SemanticAnalyzer::visit_formal(formal * const var) const
   }
   /* otherwise, append the formal to the function's scope */
   parent->get_scope()->variables.push_back(var);
-  debug(
-    "adding definition for formal '%s' (type: '%s')\n", var,
-    var->get_name().c_str(), type_to_str(var->get_type()).c_str());
   return true;
 }
 
@@ -460,7 +456,6 @@ bool SemanticAnalyzer::visit_lambda(lambda * const lambda) const
   const auto & p_scope = parent->get_scope();
   /* create new scope under the parent scope */
   lambda->set_scope(std::make_shared<scope>());
-  debug("create scope for lambda: %p\n", lambda, lambda->get_scope().get());
   lambda->get_scope()->parent = p_scope;
   /* visit children */
   if (!visit_children(lambda)) {
@@ -566,6 +561,7 @@ bool SemanticAnalyzer::visit_list(list * const _list) const
     /* expliticly labled */
     subtype = _list->get_type()->subtype;
   } else {
+    subtype = _list->get_type()->subtype;
     /* derived from first element */
     _list->get_type()->subtype = new type_info(*_list->get_head()->get_type());
     subtype = _list->get_type()->subtype;
@@ -600,6 +596,9 @@ bool SemanticAnalyzer::visit_literal(literal * const l) const
 
 bool SemanticAnalyzer::visit_simple_expression(simple_expression * const s) const
 {
+  if (!visit_children(s)) {
+    return false;
+  }
   return visit_children(s);
 }
 

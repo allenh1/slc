@@ -57,7 +57,6 @@ llvm::Value * codegen::LogErrorV(const char * s) const
 
 llvm::Value * codegen::visit_literal(literal * const l) const
 {
-  debug("visit_literal\n", l);
   switch (l->get_type()->type) {
     case type_id::INT:
       return llvm::ConstantInt::getSigned(llvm::Type::getInt64Ty(*context_), l->get_int());
@@ -162,7 +161,6 @@ llvm::Value * codegen::_convert_to_int(llvm::Value * val, const type_id _type) c
 
 llvm::Value * codegen::visit_binary_op(binary_op * const op) const
 {
-  debug("visit_binary_op\n", op);
   expression * lhs = op->get_children()[0]->as_expression();
   expression * rhs = op->get_children()[1]->as_expression();
   /* get codegen for lhs and rhs */
@@ -259,9 +257,6 @@ llvm::Value * codegen::visit_function_call(function_call * const call) const
   lambda * as_lambda = dynamic_cast<lambda *>(call->get_resolution());
   if (nullptr != as_lambda) {
     /* this is a safe cast */
-    debug(
-      "function call resolved to lambda '%s'\n",
-      call, as_lambda->get_name().c_str());
     func = module_->getFunction(as_lambda->get_name());
   } else {
     func = module_->getFunction(call->get_name());
@@ -648,7 +643,6 @@ llvm::Value * codegen::_visit_unary_op_float_list(unary_op * const op) const
 
 llvm::Value * codegen::visit_variable(variable * const var) const
 {
-  debug("visit_variable\n", var);
   if (auto it = named_values_.find(var->get_name()); it != named_values_.end()) {
     return it->second;
   }

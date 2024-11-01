@@ -68,6 +68,9 @@
 "and" {return AND;}
 "not" {return NOT;}
 "extern" {return EXTERN;}
+"for" {return FOR;}
+"in" {return IN;}
+"set" {return SET;}
 
 ">" {return GREATER;}
 "<" {return LESS;}
@@ -75,7 +78,7 @@
 "<=" {return LESS_EQ;}
 "=" {return EQUAL;}
 
-[a-zA-Z_]+ {yylval->sval = strdup(yytext); return IDENTIFIER;}
+[a-zA-Z_][a-zA-Z_0-9]* {yylval->sval = strdup(yytext); return IDENTIFIER;}
 [0-9]+\.[0-9]+ 	{yylval->fval = atof(yytext); return FLOAT;}
 [0-9]+		{yylval->ival = atoi(yytext); return INT;}
 \"(\\.|[^"\\])*\" {yylval->sval = strdup(yytext); return STR;}
