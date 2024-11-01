@@ -87,7 +87,7 @@ struct type_info
   {
     if ((this->type == type_id::LIST) && (other->type == type_id::LIST)) {
       return *this == *other || (this->subtype && other->subtype &&
-                                 this->subtype->converts_to(other->subtype));
+             this->subtype->converts_to(other->subtype));
     }
     switch (type) {
       case type_id::INT:
