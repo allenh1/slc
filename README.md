@@ -3,6 +3,14 @@
 This is a very basic LISP-like language that is statically
 typed and compiles into executables.
 
+# Quick start
+
+```
+docker run -ti --rm allenh1/slc:latest
+```
+
+Take a peek at some of the examples and give it a go!
+
 # Operations
 
 There are several operators supported.
