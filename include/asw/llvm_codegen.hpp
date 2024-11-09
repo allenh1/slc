@@ -16,6 +16,7 @@
 #define ASW__LLVM_CODEGEN_HPP_
 
 #include <asw/location_info.hpp>
+#include <asw/scope.hpp>
 #include <asw/type_info.hpp>
 #include <asw/visitor.hpp>
 
@@ -71,10 +72,16 @@ struct codegen : public llvm_visitor
   llvm::Value * visit_function_call(function_call * const) const override;
   llvm::Value * visit_function_definition(function_definition * const) const override;
   llvm::Value * visit_if_expr(if_expr * const) const override;
+  llvm::Value * visit_iterator_definition(iterator_definition * const iter) const override;
   llvm::Value * visit_lambda(lambda * const) const override;
   llvm::Value * visit_list(list * const) const override;
   llvm::Value * visit_list_op(list_op * const) const override;
+  llvm::Value * visit_collect_loop(collect_loop * const _loop) const override;
+  llvm::Value * visit_do_loop(do_loop * const _loop) const override;
+  llvm::Value * visit_infinite_loop(infinite_loop * const _loop) const override;
+  llvm::Value * visit_when_loop(when_loop * const _loop) const override;
   llvm::Value * visit_node(node * const) const override;
+  llvm::Value * visit_set_expression(set_expression * const) const override;
   llvm::Value * visit_simple_expression(simple_expression * const) const override;
   llvm::Value * visit_unary_op(unary_op * const) const override;
   llvm::Value * visit_variable(variable * const) const override;
@@ -134,12 +141,19 @@ private:
   llvm::Value * _convert_to_bool(llvm::Value * val, const type_id _type) const;
   llvm::Value * _convert_to_int(llvm::Value * val, const type_id _type) const;
   llvm::Value * _convert_to_float(llvm::Value * val, const type_id _type) const;
+  llvm::Value * _do_car(expression * const l) const;
+  llvm::Value * _do_car(llvm::Value * const l, const type_id list_type) const;
+  llvm::Value * _do_cdr(expression * const l) const;
+  llvm::Value * _do_cdr(llvm::Value * const l, const type_id list_type) const;
   llvm::Value * _visit_int_list(list * const l) const;
   llvm::Value * _visit_float_list(list * const l) const;
   llvm::Value * _visit_list_op_int(list_op * const op) const;
   llvm::Value * _visit_list_op_float(list_op * const op) const;
   llvm::Value * _visit_unary_op_int_list(unary_op * const op) const;
   llvm::Value * _visit_unary_op_float_list(unary_op * const op) const;
+
+  llvm::Value * _load_var(scope * const s, const std::string & name) const;
+  llvm::Value * _store_var(scope * const s, const std::string & name, llvm::Value * val) const;
 
   llvm::Value * _create_cons(expression * const e, expression * const l) const;
 
@@ -149,7 +163,8 @@ private:
   llvm::Type * _type_id_to_llvm(const type_id id) const;
 
   mutable std::unordered_map<std::string, llvm::Value *> named_values_;
-
+  using name_to_alloca_map_t = std::unordered_map<std::string, llvm::AllocaInst *>;
+  mutable std::unordered_map<scope *, std::unique_ptr<name_to_alloca_map_t>> scope_to_alloca_map_;
   inline static std::unique_ptr<llvm::LLVMContext> context_ = nullptr;
   inline static std::unique_ptr<llvm::Module> module_ = nullptr;
   inline static std::unique_ptr<llvm::IRBuilder<llvm::NoFolder>> builder_ = nullptr;

@@ -71,6 +71,11 @@
 "for" {return FOR;}
 "in" {return IN;}
 "set" {return SET;}
+"do" {return DO;}
+"collect" {return COLLECT;}
+"loop" {return LOOP;}
+"when" {return WHEN;}
+"return" {return RETURN;}
 
 ">" {return GREATER;}
 "<" {return LESS;}

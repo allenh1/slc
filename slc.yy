@@ -20,6 +20,7 @@ extern char * yytext;
 %token  		CAR CDR CONS LAMBDA BOOL STRING SQUOTE EXTERN
 %token 			LET LPAREN RPAREN LBRACKET RBRACKET COLON PRINT
 %token			GREATER LESS GREATER_EQ LESS_EQ EQUAL COMMA
+%token                  LOOP DO COLLECT RETURN WHEN
 %code requires {#include <asw/slc_node.hpp>}
 %code requires {#include <asw/type_info.hpp>}
 %code requires {#include <string>}
@@ -44,6 +45,7 @@ extern char * yytext;
     asw::slc::formals * formals;
     asw::slc::extern_function * exdef;
     asw::slc::lambda * lamda;
+    asw::slc::loop * loop;
 }
 
 %type	<node>  	stmt
@@ -59,6 +61,7 @@ extern char * yytext;
 %type	<formals>	formals
 %type	<func_body>	body
 %type	<exdef>		extern_definition
+%type   <loop>          loop
 %start program
 %%
 program:        program stmt
@@ -79,20 +82,97 @@ stmt:	        definition
 		{
 		    $$ = $1;
 		}
-        |       loop
-                {
-                    $$ = $1;
-                }
 		;
-
 
 definition:	variable_definition { $$ = $1; }
 	|	function_definition { $$ = $1; }
 	|	extern_definition { $$ = $1; }
 	;
 
-loop:           LPAREN FOR IDENTIFIER IN expressions body RPAREN
+body:	        stmt body
+		{
+		    $2->prepend_child($1);
+		    $$ = $2;
+		}
+	|	expression  // function body must end in an expression
+		{
+		    $$ = new asw::slc::function_body();
+		    $$->set_name(std::string("expression_") + std::to_string(@1.first_line) + "_" + std::to_string(@1.first_column));
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
+		    $$->set_return_expression($1);
+		}
+	;
+
+loop:           LPAREN LOOP body RPAREN
                 {
+                    auto * loop = new asw::slc::infinite_loop();
+                    loop->set_name(
+                      std::string("loop_") +
+                      std::to_string(@2.first_line) +
+                      "_" + std::to_string(@2.first_column));
+		    loop->set_location(@2.first_line, @2.first_column, yytext);
+                    loop->set_loop_body($3);
+                    $$ = loop;
+                }
+        |       LPAREN LOOP FOR IDENTIFIER IN expressions DO body RPAREN
+                {
+                    auto * loop = new asw::slc::do_loop();
+                    loop->set_name(
+                      std::string("loop_") +
+                      std::to_string(@2.first_line) +
+                      "_" + std::to_string(@2.first_column));
+		    loop->set_location(@2.first_line, @2.first_column, yytext);
+                    auto * iterator_def = new asw::slc::iterator_definition();
+                    iterator_def->set_name($4);
+                    free($4);
+                    /* convert list to parameters */
+                    if (!$6->is_list()) {
+			iterator_def->add_child($6);
+		    } else {
+			auto * slc_list = $6->as_list();
+			for (; nullptr != slc_list; ) {
+			    /* transfer child to this node */
+			    iterator_def->add_child(slc_list->get_head());
+			    slc_list->remove_child(slc_list->get_head(), false);
+			    slc_list = slc_list->get_tail();
+                        }
+		        delete $6;
+                    }
+                    loop->set_iterator(iterator_def);
+                    loop->set_loop_body($8);
+                    $$ = loop;
+                }
+        |       LPAREN LOOP FOR IDENTIFIER IN expressions COLLECT body RPAREN
+                {
+                    auto * loop = new asw::slc::collect_loop();
+                    loop->set_name(
+                      std::string("loop_") +
+                      std::to_string(@2.first_line) +
+                      "_" + std::to_string(@2.first_column));
+		    loop->set_location(@2.first_line, @2.first_column, yytext);
+                    auto * iterator_def = new asw::slc::iterator_definition();
+                    iterator_def->set_name($4);
+                    free($4);
+                    iterator_def->add_child($6);
+                    loop->set_loop_body($8);
+                    loop->set_iterator(iterator_def);
+                    $$ = loop;
+                }
+        |       LPAREN LOOP FOR IDENTIFIER IN expressions WHEN expression RETURN expression RPAREN
+                {
+                    auto * loop = new asw::slc::when_loop();
+                    loop->set_name(
+                      std::string("loop_") +
+                      std::to_string(@2.first_line) +
+                      "_" + std::to_string(@2.first_column));
+		    loop->set_location(@2.first_line, @2.first_column, yytext);
+                    auto * iterator_def = new asw::slc::iterator_definition();
+                    iterator_def->set_name($4);
+                    free($4);
+                    iterator_def->add_child($6);
+                    loop->set_condition($8);
+                    loop->set_return($10);
+                    $$ = loop;
                 }
         ;
 
@@ -221,20 +301,6 @@ primitive:
 		}
 	;
 
-body:	        stmt body
-		{
-		    $2->prepend_child($1);
-		    $$ = $2;
-		}
-	|	expression  // function body must end in an expression
-		{
-		    $$ = new asw::slc::function_body();
-		    $$->set_name(std::string("expression_") + std::to_string(@1.first_line) + "_" + std::to_string(@1.first_column));
-		    $$->set_location(@1.first_line, @1.first_column, yytext);
-		    $$->set_return_expression($1);
-		}
-	;
-
 bin_op:       	GREATER {$$ = asw::slc::op_id::GREATER;}
 	|	LESS {$$ = asw::slc::op_id::LESS;}
 	|	GREATER_EQ {$$ = asw::slc::op_id::GREATER_EQ;}
@@ -318,6 +384,14 @@ expression:
 		    $$->add_child($3);
 		    ((asw::slc::list_op *)$$)->set_op($2);
 		}
+        |       LPAREN SET IDENTIFIER expression RPAREN
+                {
+                    auto * p = new asw::slc::set_expression();
+                    p->set_name($3);
+                    free($3);
+                    p->add_child($4);
+                    $$ = p;
+                }
 	|	LPAREN IDENTIFIER expressions RPAREN
 		{
 		    $$ = new asw::slc::function_call();
@@ -354,6 +428,10 @@ expression:
 		    $$ = $1;
 		}
         |       lambda
+        |       loop
+                {
+                    $$ = $1;
+                }
 	;
 
 sexpr:	        IDENTIFIER
@@ -376,6 +454,14 @@ sexpr:	        IDENTIFIER
 		{
 		    auto * lit = new asw::slc::literal();
 		    lit->set_value($1);
+		    lit->set_type(asw::slc::type_id::INT);
+		    $$ = lit;
+		    $$->set_location(@1.first_line, @1.first_column, yytext);
+		}
+	|	MINUS INT
+		{
+		    auto * lit = new asw::slc::literal();
+		    lit->set_value(-1 * $2);
 		    lit->set_type(asw::slc::type_id::INT);
 		    $$ = lit;
 		    $$->set_location(@1.first_line, @1.first_column, yytext);
