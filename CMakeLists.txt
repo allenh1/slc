@@ -17,7 +17,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O2")
 # generated files
 bison_target(
   Parser slc.yy ${CMAKE_CURRENT_BINARY_DIR}/slc_bison.cc
-  # COMPILE_FLAGS -Wcounterexamples
+  COMPILE_FLAGS -Wcounterexamples
 )
 flex_target(Scanner slc.ll ${CMAKE_CURRENT_BINARY_DIR}/slc_flex.cc)
 

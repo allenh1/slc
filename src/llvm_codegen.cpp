@@ -57,7 +57,6 @@ llvm::Value * codegen::LogErrorV(const char * s) const
 
 llvm::Value * codegen::visit_literal(literal * const l) const
 {
-  debug("visit_literal\n", l);
   switch (l->get_type()->type) {
     case type_id::INT:
       return llvm::ConstantInt::getSigned(llvm::Type::getInt64Ty(*context_), l->get_int());
@@ -71,6 +70,85 @@ llvm::Value * codegen::visit_literal(literal * const l) const
       break;
   }
   return LogErrorV("unknown literal");
+}
+
+llvm::Value * codegen::visit_do_loop(do_loop * const _loop) const
+{
+  /* save iter variable in case it shadows another variable */
+  llvm::Value * old_iter_val = nullptr;
+  if (auto it = named_values_.find(_loop->get_iterator()->get_name()); it != named_values_.end()) {
+    old_iter_val = it->second;
+  }
+  llvm::Function * func = builder_->GetInsertBlock()->getParent();
+  llvm::BasicBlock * check_bb = llvm::BasicBlock::Create(*context_, "check", func);
+  llvm::BasicBlock * loop_bb = llvm::BasicBlock::Create(*context_, "loop", func);
+  llvm::BasicBlock * update_bb = llvm::BasicBlock::Create(*context_, "update", func);
+  llvm::BasicBlock * loop_end_bb = llvm::BasicBlock::Create(*context_, "loopend", func);
+  llvm::Type * iter_t = _type_id_to_llvm(_loop->get_iterator()->get_type()->type);
+  llvm::Value * null = llvm::ConstantPointerNull::get(llvm::PointerType::get(*context_, 0));
+  llvm::AllocaInst * ret_alloca =
+    builder_->CreateAlloca(
+    _type_id_to_llvm(
+      _loop->get_loop_body()->get_return_expression()->get_type()->type),
+    nullptr, "loopret");
+  llvm::AllocaInst * iter_alloca = builder_->CreateAlloca(iter_t, nullptr, "iter_head");
+  /* reserve space for iterator */
+  llvm::AllocaInst * list_iter_alloca =
+    builder_->CreateAlloca(llvm::PointerType::get(*context_, 0), nullptr, "iter_tail");
+  /* store the tail of the list in the pointer for the iterator */
+  llvm::Value * init = _loop->get_iterator()->get_list()->accept(this);
+  builder_->CreateStore(_do_cdr(init, _loop->get_iterator()->get_type()->type), list_iter_alloca);
+  /* get the value of the head of the list, and store it in iter */
+  builder_->CreateStore(_do_car(init, _loop->get_iterator()->get_type()->type), iter_alloca);
+  /* insert explicit fall-through to the check block */
+  builder_->CreateBr(check_bb);
+  builder_->SetInsertPoint(check_bb);
+  /* load the tail */
+  llvm::Value * tail = builder_->CreateLoad(
+    list_iter_alloca->getAllocatedType(), list_iter_alloca, "tail_iter");
+  /* check if tail is null */
+  llvm::Value * cond = builder_->CreateCmp(
+    llvm::CmpInst::Predicate::ICMP_EQ, tail, null,
+    "nullcheck");
+  /* if tail is null, branch to the end of the loop. otherwise jump to body */
+  builder_->CreateCondBr(cond, loop_end_bb, loop_bb);
+  builder_->SetInsertPoint(loop_bb);
+  /* initialize the iterator to the head of the list */
+  named_values_[_loop->get_iterator()->get_name()] =
+    builder_->CreateLoad(iter_alloca->getAllocatedType(), iter_alloca, "iter_head");
+  /* insert explicit fall-through to the loop block */
+  builder_->SetInsertPoint(loop_bb);
+  /* emit the body */
+  builder_->CreateStore(_loop->get_loop_body()->accept(this), ret_alloca);
+  /* fall-through to the update step */
+  builder_->CreateBr(update_bb);
+  builder_->SetInsertPoint(update_bb);
+  /* update the tail iterator */
+  const type_id list_t = _loop->get_iterator()->get_type()->type;
+  builder_->CreateStore(_do_cdr(tail, list_t), list_iter_alloca);
+  builder_->CreateStore(_do_car(tail, list_t), iter_alloca);
+  /* brach to check step */
+  builder_->CreateBr(check_bb);
+  builder_->SetInsertPoint(loop_end_bb);
+  named_values_.erase(_loop->get_iterator()->get_name());
+  named_values_[_loop->get_iterator()->get_name()] = old_iter_val;
+  return builder_->CreateLoad(
+    ret_alloca->getAllocatedType(), ret_alloca, "loopret");
+}
+
+llvm::Value * codegen::visit_collect_loop(collect_loop * const) const
+{
+  return LogErrorV("visit_collect_loop");
+}
+
+llvm::Value * codegen::visit_when_loop(when_loop * const) const
+{
+  return LogErrorV("visit_when_loop");
+}
+
+llvm::Value * codegen::visit_infinite_loop(infinite_loop * const) const
+{
+  return LogErrorV("visit_infinite_loop");
 }
 
 llvm::Value * codegen::_maybe_convert(node * const n, node * const match) const
@@ -162,7 +240,6 @@ llvm::Value * codegen::_convert_to_int(llvm::Value * val, const type_id _type) c
 
 llvm::Value * codegen::visit_binary_op(binary_op * const op) const
 {
-  debug("visit_binary_op\n", op);
   expression * lhs = op->get_children()[0]->as_expression();
   expression * rhs = op->get_children()[1]->as_expression();
   /* get codegen for lhs and rhs */
@@ -223,9 +300,7 @@ llvm::Value * codegen::visit_binary_op(binary_op * const op) const
     case op_id::EQUAL:
       return builder_->CreateCmp(predicates[0], L, R, "cmptmp");
     case op_id::GREATER:
-      {
-        return builder_->CreateCmp(predicates[1], L, R, "cmptmp");
-      }
+      return builder_->CreateCmp(predicates[1], L, R, "cmptmp");
     case op_id::LESS:
       return builder_->CreateCmp(predicates[2], L, R, "cmptmp");
     case op_id::GREATER_EQ:
@@ -246,6 +321,7 @@ llvm::Value * codegen::visit_formal(formal * const) const
 llvm::Value * codegen::visit_function_body(function_body * const body) const
 {
   for (node * const child : body->get_children()) {
+    /* visit every node except the return expression */
     if (child != body->get_return_expression()) {
       child->accept(this);
     }
@@ -259,9 +335,6 @@ llvm::Value * codegen::visit_function_call(function_call * const call) const
   lambda * as_lambda = dynamic_cast<lambda *>(call->get_resolution());
   if (nullptr != as_lambda) {
     /* this is a safe cast */
-    debug(
-      "function call resolved to lambda '%s'\n",
-      call, as_lambda->get_name().c_str());
     func = module_->getFunction(as_lambda->get_name());
   } else {
     func = module_->getFunction(call->get_name());
@@ -359,6 +432,13 @@ llvm::Value * codegen::visit_if_expr(if_expr * const if_stmt) const
   return phi;
 }
 
+llvm::Value * codegen::visit_iterator_definition(iterator_definition * const iter) const
+{
+  /* store the variable in the scope with no value */
+  named_values_[iter->get_name()] = nullptr;
+  return named_values_[iter->get_name()];
+}
+
 llvm::Value * codegen::visit_lambda(lambda * const lambda) const
 {
   std::vector<llvm::Type *> formals;
@@ -435,9 +515,48 @@ llvm::Value * codegen::visit_variable_definition(variable_definition * const v) 
       *module_, type_, false, llvm::GlobalValue::CommonLinkage, 0, v->get_name());
     return gv;
   }
-  /* otherwise, store the variable in the scope with the value */
-  named_values_[v->get_name()] = v->get_children()[0]->accept(this);
-  return named_values_[v->get_name()];
+  if (auto it = scope_to_alloca_map_.find(v->get_parent()->get_scope().get());
+    it == scope_to_alloca_map_.end())
+  {
+    /* create scope map if one does not already exist */
+    scope_to_alloca_map_[v->get_parent()->get_scope().get()] =
+      std::make_unique<name_to_alloca_map_t>();
+  }
+  name_to_alloca_map_t & name_to_alloca_map =
+    *(scope_to_alloca_map_[v->get_parent()->get_scope().get()]);
+  /* generate the initial value */
+  llvm::Value * val = v->get_children()[0]->accept(this);
+  /* create alloca for the value */
+  llvm::AllocaInst * var_alloca = builder_->CreateAlloca(val->getType(), nullptr, v->get_name());
+  /* store the value in the allocated spot */
+  builder_->CreateStore(val, var_alloca);
+  /* update the map */
+  name_to_alloca_map[v->get_name()] = var_alloca;
+  return val;
+}
+
+llvm::Value * codegen::_load_var(scope * const s, const std::string & name) const
+{
+  /* check the specified scope for the variable */
+  name_to_alloca_map_t & name_map = *scope_to_alloca_map_[s];
+  if (name_map.find(name) == name_map.end()) {
+    return LogErrorV("unable to locate variable in requested scope");
+  }
+  llvm::AllocaInst * alloc = name_map[name];
+  return builder_->CreateLoad(alloc->getAllocatedType(), alloc, name);
+}
+
+llvm::Value * codegen::_store_var(
+  scope * const s, const std::string & name,
+  llvm::Value * val) const
+{
+  /* check the specified scope for the variable */
+  name_to_alloca_map_t & name_map = *scope_to_alloca_map_[s];
+  if (name_map.find(name) == name_map.end()) {
+    return LogErrorV("unable to locate variable in requested scope");
+  }
+  llvm::AllocaInst * alloc = name_map[name];
+  return builder_->CreateStore(val, alloc), val;
 }
 
 llvm::Value * codegen::_create_cons(expression * const e, expression * const l) const
@@ -455,7 +574,7 @@ llvm::Value * codegen::_create_cons(expression * const e, expression * const l) 
       cons = module_->getFunction("slc_double_list_cons");
       break;
     default:
-      return LogErrorV("Unimplemented list type");
+      return LogErrorV("Unimplemented list type in create_cons");
   }
   return builder_->CreateCall(cons, args, "binop_cons");
 }
@@ -514,7 +633,7 @@ llvm::Value * codegen::visit_list(list * const l) const
     return _visit_float_list(l);
   }
 
-  return LogErrorV("unimplemented list type");
+  return LogErrorV("unimplemented list type in visit_list");
 }
 
 llvm::Value * codegen::_visit_list_op_int(list_op * const op) const
@@ -574,7 +693,7 @@ llvm::Value * codegen::visit_list_op(list_op * const op) const
   } else if (op->get_type()->type == type_id::FLOAT) {
     return _visit_list_op_float(op);
   }
-  return LogErrorV("unimplemented list type");
+  return LogErrorV("unimplemented list type in visit_list_op");
 }
 
 llvm::Value * codegen::visit_node(node * const n) const
@@ -584,6 +703,12 @@ llvm::Value * codegen::visit_node(node * const n) const
     ret = child->accept(this);
   }
   return ret;
+}
+
+llvm::Value * codegen::visit_set_expression(set_expression * const expr) const
+{
+  scope * const s = expr->get_resolution()->get_scope().get();
+  return _store_var(s, expr->get_name(), expr->get_children()[0]->accept(this));
 }
 
 llvm::Value * codegen::visit_simple_expression(simple_expression * const) const
@@ -602,6 +727,53 @@ llvm::Value * codegen::visit_unary_op(unary_op * const op) const
 
   }
   return LogErrorV("unimplemented unary op");
+}
+
+llvm::Value * codegen::_do_car(llvm::Value * l, const type_id list_type) const
+{
+  llvm::Function * op_impl;
+  std::vector<llvm::Value *> args = {l};
+
+  switch (list_type) {
+    case type_id::INT:
+      op_impl = module_->getFunction("slc_int_list_car");
+      return builder_->CreateLoad(
+        llvm::Type::getInt64Ty(*context_),
+        builder_->CreateCall(op_impl, args));
+    case type_id::FLOAT:
+      op_impl = module_->getFunction("slc_double_list_car");
+      return builder_->CreateCall(op_impl, args);
+    default:
+      return LogErrorV("unimplemented car type");
+  }
+  return LogErrorV("unexpected return in _do_car");
+}
+
+llvm::Value * codegen::_do_car(expression * const l) const
+{
+  return _do_car(l->accept(this), l->get_type()->subtype->type);
+}
+
+llvm::Value * codegen::_do_cdr(llvm::Value * l, const type_id list_type) const
+{
+  llvm::Function * op_impl;
+  std::vector<llvm::Value *> args = {l};
+  switch (list_type) {
+    case type_id::INT:
+      op_impl = module_->getFunction("slc_int_list_cdr");
+      break;
+    case type_id::FLOAT:
+      op_impl = module_->getFunction("slc_double_list_cdr");
+      break;
+    default:
+      return LogErrorV("unimplemented cdr type in _do_cdr");
+  }
+  return builder_->CreateCall(op_impl, args);
+}
+
+llvm::Value * codegen::_do_cdr(expression * const l) const
+{
+  return _do_cdr(l->accept(this), l->get_type()->subtype->type);
 }
 
 llvm::Value * codegen::_visit_unary_op_int_list(unary_op * const op) const
@@ -648,10 +820,10 @@ llvm::Value * codegen::_visit_unary_op_float_list(unary_op * const op) const
 
 llvm::Value * codegen::visit_variable(variable * const var) const
 {
-  debug("visit_variable\n", var);
   if (auto it = named_values_.find(var->get_name()); it != named_values_.end()) {
     return it->second;
   }
-  return LogErrorV("unknown variable");
+  /* otherwise, call load */
+  return _load_var(var->get_resolution()->get_scope().get(), var->get_name());
 }
 }  // namespace asw::slc::LLVM

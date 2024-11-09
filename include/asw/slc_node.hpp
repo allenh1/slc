@@ -62,6 +62,7 @@ enum class op_id
   CDR,
   CONS,
   PRINT,
+  ASSIGN,
   INVALID,
 };
 
@@ -105,6 +106,8 @@ inline std::string op_to_str(op_id id)
       return "print"s;
     case op_id::INVALID:
       return "invalid"s;
+    case op_id::ASSIGN:
+      return "assign"s;
   }
   return "unknown_op"s;
 }
@@ -240,11 +243,6 @@ struct node
   void set_scope(std::shared_ptr<scope> _scope)
   {
     scope_ = std::move(_scope);
-#ifdef DEBUG
-    fprintf(
-      stderr, "scope for '%s' set to %p\n",
-      this->get_name().c_str(), scope_.get());
-#endif
   }
 
   std::shared_ptr<scope> & get_scope()
@@ -334,19 +332,25 @@ struct node
   }
 
   utilities(binary_op)
+  utilities(collect_loop)
+  utilities(do_loop)
   utilities(expression)
   utilities(extern_function)
-  utilities(list_op)
-  utilities(unary_op)
-  utilities(if_expr)
-  utilities(lambda)
-  utilities(list)
-  utilities(literal)
   utilities(formal)
   utilities(function_call)
   utilities(function_body)
-  utilities(variable_definition)
   utilities(function_definition)
+  utilities(if_expr)
+  utilities(infinite_loop)
+  utilities(lambda)
+  utilities(list)
+  utilities(list_op)
+  utilities(literal)
+  utilities(loop)
+  utilities(set_expression)
+  utilities(unary_op)
+  utilities(variable_definition)
+  utilities(when_loop)
 
 protected:
   node * parent_ = nullptr;
@@ -853,6 +857,95 @@ protected:
   /* value (expression) stored as child */
 };
 
+struct set_expression : public expression
+{
+  ~set_expression() override = default;
+
+  std::string print_node(size_t indent_level) const override
+  {
+    std::string indent = get_indent(indent_level);
+    std::string ret = indent + "set(" + this->get_fqn() + "):\n";
+    for (const auto & child : children) {
+      ret += child->print_node(indent_level + 1);
+    }
+    return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_set_expression(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_set_expression(this);
+  }
+
+  void resolve(definition * def)
+  {
+    /* set pointer to the variable or function this node references */
+    resolved_definition = def;
+    type_info * tid = new type_info();
+    *tid = *def->get_type();
+    this->set_type(tid);
+  }
+
+  bool is_resolved() const
+  {
+    return nullptr != resolved_definition;
+  }
+
+  definition * get_resolution() const
+  {
+    return resolved_definition;
+  }
+
+protected:
+  definition * resolved_definition = nullptr;
+  /* name */
+  /* value (expression) stored as child */
+};
+
+struct iterator_definition : public variable_definition
+{
+  ~iterator_definition() override = default;
+
+  std::string print_node(size_t indent_level) const override
+  {
+    std::string indent = get_indent(indent_level);
+    std::string ret = indent + "iterator_definition(" + this->get_fqn() + "):\n";
+    for (const auto & child : children) {
+      ret += child->print_node(indent_level + 1);
+    }
+    return ret;
+  }
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_iterator_definition(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_iterator_definition(this);
+  }
+
+  expression * get_list()
+  {
+    return list_;
+  }
+
+  void set_list(expression * _list)
+  {
+    list_ = _list;
+  }
+
+protected:
+  expression * list_;
+  /* name */
+  /* list */
+};
+
 struct formal : public variable_definition
 {
   ~formal() override = default;
@@ -1006,6 +1099,133 @@ struct extern_function : public function_definition
   {
     return v->visit_extern_function(this);
   }
+};
+
+struct loop : public expression
+{
+  ~loop() override = default;
+
+  void set_loop_body(function_body * const b)
+  {
+    this->add_child(b);
+    this->body_ = b;
+  }
+
+  function_body * get_loop_body() const
+  {
+    return body_;
+  }
+
+  void set_iterator(iterator_definition * const iter)
+  {
+    this->add_child(iter);
+    this->iterator_ = iter;
+  }
+
+  iterator_definition * get_iterator() const
+  {
+    return iterator_;
+  }
+
+  std::string print_node(size_t indent_level) const override
+  {
+    std::string ret = get_indent(indent_level) + "loop(" + this->get_fqn() + "):\n";
+    for (const auto & child : children) {
+      ret += child->print_node(indent_level + 1);
+    }
+    return ret;
+  }
+
+protected:
+  function_body * body_ = nullptr;
+  iterator_definition * iterator_ = nullptr;
+};
+
+struct infinite_loop : public loop
+{
+  ~infinite_loop() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_infinite_loop(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_infinite_loop(this);
+  }
+
+};
+
+struct do_loop : public loop
+{
+  ~do_loop() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_do_loop(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_do_loop(this);
+  }
+};
+
+struct collect_loop : public loop
+{
+  ~collect_loop() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_collect_loop(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_collect_loop(this);
+  }
+};
+
+struct when_loop : public loop
+{
+  ~when_loop() override = default;
+
+  bool accept(const visitor * v) override
+  {
+    return v->visit_when_loop(this);
+  }
+
+  llvm::Value * accept(const llvm_visitor * v) override
+  {
+    return v->visit_when_loop(this);
+  }
+
+  void set_condition(expression * const expr)
+  {
+    this->add_child(expr);
+    this->condition_ = expr;
+  }
+
+  expression * get_condition() const
+  {
+    return condition_;
+  }
+
+  void set_return(expression * const expr)
+  {
+    this->add_child(expr);
+    this->return_ = expr;
+  }
+
+  expression * get_return() const
+  {
+    return return_;
+  }
+
+protected:
+  expression * condition_ = nullptr;
+  expression * return_ = nullptr;
 };
 
 } // namespace asw::slc

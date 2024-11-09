@@ -226,7 +226,7 @@ bool SemanticAnalyzer::visit_function_call(function_call * const call_) const
   /* our result depends on the other branch */
   if (pif->get_affirmative()->is_anscestor(call_)) {
     /* visit the else branch first, and take that branch's value */
-    if (nullptr != pif->get_else()->get_type()) {
+    if (pif->get_else()->visited()) {
       call_->set_type(new type_info(*pif->get_else()->get_type()));
       return true;
     } else if (pif->get_else()->visiting()) {
@@ -248,7 +248,7 @@ bool SemanticAnalyzer::visit_function_call(function_call * const call_) const
   } else if (!visit(pif->get_affirmative())) {
     return false;
   }
-  call_->set_type(new type_info(*pif->get_else()->get_type()));
+  call_->set_type(new type_info(*pif->get_affirmative()->get_type()));
   return true;
 }
 
@@ -306,7 +306,6 @@ bool SemanticAnalyzer::visit_function_definition(function_definition * const fun
   parent->get_scope()->functions.emplace_back(func_);
   /* create new scope under the parent scope */
   func_->set_scope(std::make_shared<scope>());
-  debug("create scope for function: %p\n", func_, func_->get_scope().get());
   func_->get_scope()->parent = p_scope;
   /* visit children */
   if (!visit_children(func_)) {
@@ -325,6 +324,10 @@ bool SemanticAnalyzer::visit_function_definition(function_definition * const fun
 
 bool SemanticAnalyzer::visit_if_expr(if_expr * const if_stmt) const
 {
+  auto * parent = if_stmt->get_parent();
+  const auto & p_scope = parent->get_scope();
+  if_stmt->set_scope(std::make_shared<scope>());
+  if_stmt->get_scope()->parent = p_scope;
   /* verify we have three children */
   if (if_stmt->get_children().size() != 3) {
     internal_compiler_error(
@@ -358,6 +361,55 @@ bool SemanticAnalyzer::visit_if_expr(if_expr * const if_stmt) const
     return false;
   }
   if_stmt->set_type(new type_info(*affirmative_t));
+  return true;
+}
+
+bool SemanticAnalyzer::visit_iterator_definition(iterator_definition * const iter) const
+{
+  if (!visit_children(iter)) {
+    return false;
+  }
+  if (iter->get_children()[0]->get_type()->type != type_id::LIST) {
+    error(
+      "cannot iterate over type '%s'\n",
+      iter->get_children()[0],
+      type_to_str(iter->get_children()[0]->get_type()).c_str());
+    return false;
+  }
+  if (nullptr == iter->get_children()[0]->as_expression()) {
+    error(
+      "expected an expression for list, but node is not an expression\n",
+      iter->get_children()[0]
+    );
+    return false;
+  }
+  iter->set_list(iter->get_children()[0]->as_expression());
+  /* resolve to the type inside the list */
+  iter->set_type(new type_info(*iter->get_children()[0]->get_type()->subtype));
+  auto * parent = iter->get_parent();
+  iter->set_scope(parent->get_scope());
+  /* check scope for redefinition */
+  function_definition * f_conflict;
+  variable_definition * v_conflict;
+  if (scope_has_function(iter->get_name(), parent->get_scope().get(), &f_conflict)) {
+    location_info & loc = *f_conflict->get_location();
+    error(
+      "conflicting definition for variable '%s' (original on line %d column %d): %s\n",
+      iter,
+      iter->get_name().c_str(),
+      loc.line, loc.column, loc.text.c_str());
+    return false;
+  } else if (scope_has_variable(iter->get_name(), parent->get_scope().get(), &v_conflict)) {
+    location_info & loc = *v_conflict->get_location();
+    error(
+      "conflicting definition for variable '%s' (original on line %d column %d): %s\n",
+      iter,
+      iter->get_name().c_str(),
+      loc.line, loc.column);
+    return false;
+  }
+  /* otherwise, append the variable to the scope */
+  iter->get_scope()->variables.push_back(iter);
   return true;
 }
 
@@ -445,9 +497,6 @@ bool SemanticAnalyzer::visit_formal(formal * const var) const
   }
   /* otherwise, append the formal to the function's scope */
   parent->get_scope()->variables.push_back(var);
-  debug(
-    "adding definition for formal '%s' (type: '%s')\n", var,
-    var->get_name().c_str(), type_to_str(var->get_type()).c_str());
   return true;
 }
 
@@ -460,7 +509,6 @@ bool SemanticAnalyzer::visit_lambda(lambda * const lambda) const
   const auto & p_scope = parent->get_scope();
   /* create new scope under the parent scope */
   lambda->set_scope(std::make_shared<scope>());
-  debug("create scope for lambda: %p\n", lambda, lambda->get_scope().get());
   lambda->get_scope()->parent = p_scope;
   /* visit children */
   if (!visit_children(lambda)) {
@@ -566,6 +614,7 @@ bool SemanticAnalyzer::visit_list(list * const _list) const
     /* expliticly labled */
     subtype = _list->get_type()->subtype;
   } else {
+    subtype = _list->get_type()->subtype;
     /* derived from first element */
     _list->get_type()->subtype = new type_info(*_list->get_head()->get_type());
     subtype = _list->get_type()->subtype;
@@ -598,9 +647,73 @@ bool SemanticAnalyzer::visit_literal(literal * const l) const
   return true;
 }
 
+bool SemanticAnalyzer::visit_do_loop(do_loop * const _loop) const
+{
+  auto * parent = _loop->get_parent();
+  const auto & p_scope = parent->get_scope();
+  /* create new scope under the parent scope */
+  _loop->set_scope(std::make_shared<scope>());
+  _loop->get_scope()->parent = p_scope;
+  if (!visit_children(_loop)) {
+    return false;
+  }
+  _loop->set_type(new type_info(*_loop->get_loop_body()->get_return_expression()->get_type()));
+  return true;
+}
+
+bool SemanticAnalyzer::visit_collect_loop(collect_loop * const _loop) const
+{
+  return visit_children(_loop);
+}
+
+bool SemanticAnalyzer::visit_when_loop(when_loop * const _loop) const
+{
+  return visit_children(_loop);
+}
+
+bool SemanticAnalyzer::visit_infinite_loop(infinite_loop * const _loop) const
+{
+  return visit_children(_loop);
+}
+
+bool SemanticAnalyzer::visit_set_expression(set_expression * const s) const
+{
+  if (!visit_children(s)) {
+    return false;
+  }
+  /* set up this variable's scope */
+  node * parent;
+  for (parent = s->get_parent(); parent && (parent->get_scope() == nullptr); ) {
+    parent = parent->get_parent();
+  }
+  if (nullptr == parent) {
+    /* made it to root, this should not happen */
+    internal_compiler_error(
+      "traversed to root node before finding a scope to lookup variable '%s'\n", s->get_fqn());
+    return false;
+  }
+  variable_definition * resolved = nullptr;
+  auto scope = parent->get_scope();
+  for (; scope && !scope_has_variable(s->get_name(), scope.get(), &resolved);
+    scope = scope->parent)
+  {
+    /* search for the requested variable in this scope, or parent scopes */
+  }
+  if (!resolved) {
+    error("undefined reference to variable '%s'\n", s, s->get_name().c_str());
+    return false;
+  }
+  s->set_type(new type_info(*resolved->get_type()));
+  s->resolve(resolved);
+  return true;
+}
+
 bool SemanticAnalyzer::visit_simple_expression(simple_expression * const s) const
 {
-  return visit_children(s);
+  if (!visit_children(s)) {
+    return false;
+  }
+  return true;
 }
 
 bool SemanticAnalyzer::visit_unary_op(unary_op * const op) const

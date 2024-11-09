@@ -38,12 +38,18 @@ public:
   bool visit_extern_function(extern_function * const func_) const override;
   bool visit_function_definition(function_definition * const func_) const override;
   bool visit_if_expr(if_expr * const if_stmt) const override;
+  bool visit_iterator_definition(iterator_definition * const iter) const override;
   bool visit_variable_definition(variable_definition * const var_) const override;
   bool visit_formal(formal * const var) const override;
   bool visit_lambda(lambda * const lambda) const override;
   bool visit_list_op(list_op * const op) const override;
   bool visit_list(list * const _list) const override;
   bool visit_literal(literal * const l) const override;
+  bool visit_collect_loop(collect_loop * const _loop) const override;
+  bool visit_do_loop(do_loop * const _loop) const override;
+  bool visit_infinite_loop(infinite_loop * const _loop) const override;
+  bool visit_when_loop(when_loop * const _loop) const override;
+  bool visit_set_expression(set_expression * const s) const override;
   bool visit_simple_expression(simple_expression * const s) const override;
   bool visit_unary_op(unary_op * const op) const override;
   bool visit_variable(variable * const var) const override;
