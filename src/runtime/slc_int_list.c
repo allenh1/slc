@@ -86,6 +86,24 @@ struct slc_int_list * slc_int_list_cons(int64_t head, struct slc_int_list * tail
   return ret;
 }
 
+struct slc_int_list * slc_int_list_append(struct slc_int_list * list, int64_t val)
+{
+  if (NULL == list) {
+    list = slc_int_list_create();
+    list->head = val;
+    list->tail = NULL;
+    return list;
+  }
+  struct slc_int_list * iter = list;
+  for (; iter->tail != NULL; iter = iter->tail) {
+    /* go to the end of the list */
+  }
+  iter->tail = slc_int_list_create();
+  slc_int_list_init(iter->tail);
+  iter->tail->head = val;
+  return list;
+}
+
 int64_t * slc_int_list_car(struct slc_int_list * list)
 {
   if (list) {

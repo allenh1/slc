@@ -22,16 +22,22 @@
 (defun fn (n: int)
   (let f1 0)
   (let f2 1)
-  (let tmp -1)
   (if (<= n 1)
     1
-    (loop for idx in (range 0 (- n 1)) do
-      (set tmp (+ f1 f2))
+    (loop for idx in (range 1 n) do
+      (let tmp (+ f1 f2))
       (set f1 f2)
       (set f2 tmp)
     )
   ))
 
+(defun squares (n: int)
+  (loop for n in (range 1 (+ n 1)) collect (* n n)))
+
 (defun main
   (slc_puts "Which fn do you want?")
-  (print_int (fn (slc_read_int))))
+  (let x (slc_read_int))
+  (print_int (fn x))
+  (slc_puts "squares of n numbers:")
+  (print_slc_int_list (squares x))
+)

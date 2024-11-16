@@ -136,9 +136,71 @@ llvm::Value * codegen::visit_do_loop(do_loop * const _loop) const
     ret_alloca->getAllocatedType(), ret_alloca, "loopret");
 }
 
-llvm::Value * codegen::visit_collect_loop(collect_loop * const) const
+llvm::Value * codegen::visit_collect_loop(collect_loop * const _loop) const
 {
-  return LogErrorV("visit_collect_loop");
+  /* save iter variable in case it shadows another variable */
+  llvm::Value * old_iter_val = nullptr;
+  if (auto it = named_values_.find(_loop->get_iterator()->get_name()); it != named_values_.end()) {
+    old_iter_val = it->second;
+  }
+  llvm::Function * func = builder_->GetInsertBlock()->getParent();
+  llvm::BasicBlock * check_bb = llvm::BasicBlock::Create(*context_, "check", func);
+  llvm::BasicBlock * loop_bb = llvm::BasicBlock::Create(*context_, "loop", func);
+  llvm::BasicBlock * update_bb = llvm::BasicBlock::Create(*context_, "update", func);
+  llvm::BasicBlock * loop_end_bb = llvm::BasicBlock::Create(*context_, "loopend", func);
+  llvm::Type * iter_t = _type_id_to_llvm(_loop->get_iterator()->get_type()->type);
+  llvm::Value * null = llvm::ConstantPointerNull::get(llvm::PointerType::get(*context_, 0));
+  /* create list */
+  llvm::AllocaInst * retlist_alloca =
+    builder_->CreateAlloca(llvm::PointerType::get(*context_, 0), nullptr, "retlist");
+  /* store null in the retlist */
+  builder_->CreateStore(null, retlist_alloca);
+  llvm::AllocaInst * iter_alloca = builder_->CreateAlloca(iter_t, nullptr, "iter_head");
+  /* reserve space for iterator */
+  llvm::AllocaInst * list_iter_alloca =
+    builder_->CreateAlloca(llvm::PointerType::get(*context_, 0), nullptr, "iter_tail");
+  /* store the tail of the list in the pointer for the iterator */
+  llvm::Value * init = _loop->get_iterator()->get_list()->accept(this);
+  builder_->CreateStore(_do_cdr(init, _loop->get_iterator()->get_type()->type), list_iter_alloca);
+  /* get the value of the head of the list, and store it in iter */
+  builder_->CreateStore(_do_car(init, _loop->get_iterator()->get_type()->type), iter_alloca);
+  /* insert explicit fall-through to the check block */
+  builder_->CreateBr(check_bb);
+  builder_->SetInsertPoint(check_bb);
+  /* load the tail */
+  llvm::Value * tail = builder_->CreateLoad(
+    list_iter_alloca->getAllocatedType(), list_iter_alloca, "tail_iter");
+  /* check if tail is null */
+  llvm::Value * cond = builder_->CreateCmp(
+    llvm::CmpInst::Predicate::ICMP_EQ, tail, null,
+    "nullcheck");
+  /* if tail is null, branch to the end of the loop. otherwise jump to body */
+  builder_->CreateCondBr(cond, loop_end_bb, loop_bb);
+  builder_->SetInsertPoint(loop_bb);
+  /* initialize the iterator to the head of the list */
+  named_values_[_loop->get_iterator()->get_name()] =
+    builder_->CreateLoad(iter_alloca->getAllocatedType(), iter_alloca, "iter_head");
+  /* insert explicit fall-through to the loop block */
+  builder_->SetInsertPoint(loop_bb);
+  /* emit the body */
+  builder_->CreateStore(
+    _do_append(
+      builder_->CreateLoad(retlist_alloca->getAllocatedType(), retlist_alloca, "retlist"),
+      _loop->get_loop_body()->accept(this), _loop->get_loop_body()->get_return_expression()->get_type()->type),
+    retlist_alloca);
+  /* fall-through to the update step */
+  builder_->CreateBr(update_bb);
+  builder_->SetInsertPoint(update_bb);
+  /* update the tail iterator */
+  const type_id list_t = _loop->get_iterator()->get_type()->type;
+  builder_->CreateStore(_do_cdr(tail, list_t), list_iter_alloca);
+  builder_->CreateStore(_do_car(tail, list_t), iter_alloca);
+  /* brach to check step */
+  builder_->CreateBr(check_bb);
+  builder_->SetInsertPoint(loop_end_bb);
+  named_values_.erase(_loop->get_iterator()->get_name());
+  named_values_[_loop->get_iterator()->get_name()] = old_iter_val;
+  return builder_->CreateLoad(retlist_alloca->getAllocatedType(), retlist_alloca, "retlist");
 }
 
 llvm::Value * codegen::visit_when_loop(when_loop * const) const
@@ -749,6 +811,42 @@ llvm::Value * codegen::_do_car(llvm::Value * l, const type_id list_type) const
   return LogErrorV("unexpected return in _do_car");
 }
 
+llvm::Value * codegen::_do_create_list(const type_id list_type) const
+{
+  llvm::Function * op_impl;
+  std::vector<llvm::Value *> args = {};
+
+  switch (list_type) {
+    case type_id::INT:
+      op_impl = module_->getFunction("slc_int_list_create");
+      return builder_->CreateCall(op_impl, args);
+    case type_id::FLOAT:
+      op_impl = module_->getFunction("slc_double_list_create");
+      return builder_->CreateCall(op_impl, args);
+    default:
+      break;
+  }
+  return LogErrorV("unexpected return in _do_create_list");
+}
+
+llvm::Value * codegen::_do_init_list(llvm::Value * l, const type_id list_type) const
+{
+  llvm::Function * op_impl;
+  std::vector<llvm::Value *> args = {l};
+
+  switch (list_type) {
+    case type_id::INT:
+      op_impl = module_->getFunction("slc_int_list_init");
+      return builder_->CreateCall(op_impl, args);
+    case type_id::FLOAT:
+      op_impl = module_->getFunction("slc_double_list_init");
+      return builder_->CreateCall(op_impl, args);
+    default:
+      break;
+  }
+  return LogErrorV("unexpected return in _do_init_list");
+}
+
 llvm::Value * codegen::_do_car(expression * const l) const
 {
   return _do_car(l->accept(this), l->get_type()->subtype->type);
@@ -774,6 +872,28 @@ llvm::Value * codegen::_do_cdr(llvm::Value * l, const type_id list_type) const
 llvm::Value * codegen::_do_cdr(expression * const l) const
 {
   return _do_cdr(l->accept(this), l->get_type()->subtype->type);
+}
+
+llvm::Value * codegen::_do_append(llvm::Value * const l, llvm::Value * const val, const type_id list_type) const
+{
+  llvm::Function * op_impl;
+  std::vector<llvm::Value *> args = {l, val};
+  switch (list_type) {
+    case type_id::INT:
+      op_impl = module_->getFunction("slc_int_list_append");
+      break;
+    case type_id::FLOAT:
+      op_impl = module_->getFunction("slc_double_list_append");
+      break;
+    default:
+      return LogErrorV("unimplemented append type in _do_append");
+  }
+  return builder_->CreateCall(op_impl, args);
+}
+
+llvm::Value * codegen::_do_append(expression * const l, expression * const r) const
+{
+  return _do_append(l->accept(this), r->accept(this), r->get_type()->type);
 }
 
 llvm::Value * codegen::_visit_unary_op_int_list(unary_op * const op) const

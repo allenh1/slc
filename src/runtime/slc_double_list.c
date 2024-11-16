@@ -86,6 +86,24 @@ struct slc_double_list * slc_double_list_cons(double head, struct slc_double_lis
   return ret;
 }
 
+struct slc_double_list * slc_double_list_append(struct slc_double_list * list, double val)
+{
+  if (NULL == list) {
+    list = slc_double_list_create();
+    list->head = val;
+    list->tail = NULL;
+    return list;
+  }
+  struct slc_double_list * iter = list;
+  for (; iter->tail != NULL; iter = iter->tail) {
+    /* go to the end of the list */
+  }
+  iter->tail = slc_double_list_create();
+  slc_double_list_init(iter->tail);
+  iter->tail->head = val;
+  return list;
+}
+
 double * slc_double_list_car(struct slc_double_list * list)
 {
   if (list) {

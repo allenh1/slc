@@ -31,7 +31,8 @@ int64_t * slc_int_list_car(struct slc_int_list *);
 struct slc_int_list * slc_int_list_cdr(struct slc_int_list *);
 
 /* binary ops */
-struct slc_int_list * slc_int_list_cons(int64_t head, struct slc_int_list * tail);
+struct slc_int_list * slc_int_list_cons(int64_t, struct slc_int_list *);
+struct slc_int_list * slc_int_list_append(struct slc_int_list *, int64_t);
 
 /* list ops */
 int64_t slc_int_list_add(struct slc_int_list *);

@@ -33,6 +33,7 @@ struct slc_double_list * slc_double_list_cdr(struct slc_double_list *);
 
 /* binary ops */
 struct slc_double_list * slc_double_list_cons(double head, struct slc_double_list * tail);
+struct slc_double_list * slc_double_list_append(struct slc_double_list *, double);
 
 /* list ops */
 double slc_double_list_add(struct slc_double_list *);

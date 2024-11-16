@@ -663,7 +663,20 @@ bool SemanticAnalyzer::visit_do_loop(do_loop * const _loop) const
 
 bool SemanticAnalyzer::visit_collect_loop(collect_loop * const _loop) const
 {
-  return visit_children(_loop);
+  auto * parent = _loop->get_parent();
+  const auto & p_scope = parent->get_scope();
+  /* create new scope under the parent scope */
+  _loop->set_scope(std::make_shared<scope>());
+  _loop->get_scope()->parent = p_scope;
+  if (!visit_children(_loop)) {
+    return false;
+  }
+  type_info * subtype = new type_info(*_loop->get_loop_body()->get_return_expression()->get_type());
+  type_info * type = new type_info;
+  type->type = type_id::LIST;
+  type->subtype = subtype;
+  _loop->set_type(type);
+  return true;
 }
 
 bool SemanticAnalyzer::visit_when_loop(when_loop * const _loop) const
