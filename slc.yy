@@ -153,7 +153,19 @@ loop:           LPAREN LOOP body RPAREN
                     auto * iterator_def = new asw::slc::iterator_definition();
                     iterator_def->set_name($4);
                     free($4);
-                    iterator_def->add_child($6);
+                    /* convert list to parameters */
+                    if (!$6->is_list()) {
+			iterator_def->add_child($6);
+		    } else {
+			auto * slc_list = $6->as_list();
+			for (; nullptr != slc_list; ) {
+			    /* transfer child to this node */
+			    iterator_def->add_child(slc_list->get_head());
+			    slc_list->remove_child(slc_list->get_head(), false);
+			    slc_list = slc_list->get_tail();
+                        }
+		        delete $6;
+                    }
                     loop->set_loop_body($8);
                     loop->set_iterator(iterator_def);
                     $$ = loop;
@@ -169,6 +181,19 @@ loop:           LPAREN LOOP body RPAREN
                     auto * iterator_def = new asw::slc::iterator_definition();
                     iterator_def->set_name($4);
                     free($4);
+                    /* convert list to parameters */
+                    if (!$6->is_list()) {
+			iterator_def->add_child($6);
+		    } else {
+			auto * slc_list = $6->as_list();
+			for (; nullptr != slc_list; ) {
+			    /* transfer child to this node */
+			    iterator_def->add_child(slc_list->get_head());
+			    slc_list->remove_child(slc_list->get_head(), false);
+			    slc_list = slc_list->get_tail();
+                        }
+		        delete $6;
+                    }
                     iterator_def->add_child($6);
                     loop->set_condition($8);
                     loop->set_return($10);

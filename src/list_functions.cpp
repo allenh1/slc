@@ -20,12 +20,14 @@ namespace asw::slc::LLVM
 void codegen::_insert_slc_int_list_functions() const
 {
   /* slc_int_list */
-  llvm::Type * slc_int_list_type = llvm::PointerType::getInt64Ty(*context_)->getPointerTo();
+  llvm::Type * slc_int_list_type = llvm::PointerType::get(*context_, 0);
   std::vector<llvm::Type *> args_slc_int_list_destroy = {slc_int_list_type};
   std::vector<llvm::Type *> args_slc_int_list_set_head = {slc_int_list_type, llvm::Type::getInt64Ty(
       *context_)};
   std::vector<llvm::Type *> args_slc_int_list_cons =
   {llvm::Type::getInt64Ty(*context_), slc_int_list_type};
+  std::vector<llvm::Type *> args_slc_int_list_append =
+    {slc_int_list_type, llvm::Type::getInt64Ty(*context_)};
   llvm::FunctionType * slc_int_list_create = llvm::FunctionType::get(
     slc_int_list_type, false);
   llvm::FunctionType * slc_int_list_destroy = llvm::FunctionType::get(
@@ -42,6 +44,8 @@ void codegen::_insert_slc_int_list_functions() const
     slc_int_list_type, args_slc_int_list_destroy, false);
   llvm::FunctionType * slc_int_list_cons = llvm::FunctionType::get(
     slc_int_list_type, args_slc_int_list_cons, false);
+  llvm::FunctionType * slc_int_list_append = llvm::FunctionType::get(
+    slc_int_list_type, args_slc_int_list_append, false);
   llvm::FunctionType * slc_int_list_add = llvm::FunctionType::get(
     llvm::Type::getInt64Ty(*context_), args_slc_int_list_destroy, false);
   llvm::FunctionType * slc_int_list_subtract = llvm::FunctionType::get(
@@ -77,6 +81,9 @@ void codegen::_insert_slc_int_list_functions() const
   llvm::Function::Create(
     slc_int_list_cons, llvm::Function::ExternalLinkage, "slc_int_list_cons",
     module_.get());
+  llvm::Function::Create(
+    slc_int_list_append, llvm::Function::ExternalLinkage, "slc_int_list_append",
+    module_.get());
   /* list ops */
   llvm::Function::Create(
     slc_int_list_add, llvm::Function::ExternalLinkage, "slc_int_list_add",
@@ -102,6 +109,8 @@ void codegen::_insert_slc_double_list_functions() const
       *context_)};
   std::vector<llvm::Type *> args_slc_double_list_cons =
   {llvm::Type::getDoubleTy(*context_), slc_double_list_type};
+  std::vector<llvm::Type *> args_slc_double_list_append =
+  {slc_double_list_type, llvm::Type::getDoubleTy(*context_)};
   llvm::FunctionType * slc_double_list_create = llvm::FunctionType::get(
     slc_double_list_type, false);
   llvm::FunctionType * slc_double_list_destroy = llvm::FunctionType::get(
@@ -118,6 +127,8 @@ void codegen::_insert_slc_double_list_functions() const
     slc_double_list_type, args_slc_double_list_destroy, false);
   llvm::FunctionType * slc_double_list_cons = llvm::FunctionType::get(
     slc_double_list_type, args_slc_double_list_cons, false);
+  llvm::FunctionType * slc_double_list_append = llvm::FunctionType::get(
+    slc_double_list_type, args_slc_double_list_append, false);
   llvm::FunctionType * slc_double_list_add = llvm::FunctionType::get(
     llvm::Type::getDoubleTy(*context_), args_slc_double_list_destroy, false);
   llvm::FunctionType * slc_double_list_subtract = llvm::FunctionType::get(
@@ -152,6 +163,9 @@ void codegen::_insert_slc_double_list_functions() const
   /* binary ops */
   llvm::Function::Create(
     slc_double_list_cons, llvm::Function::ExternalLinkage, "slc_double_list_cons",
+    module_.get());
+  llvm::Function::Create(
+    slc_double_list_append, llvm::Function::ExternalLinkage, "slc_double_list_append",
     module_.get());
   /* list ops */
   llvm::Function::Create(
